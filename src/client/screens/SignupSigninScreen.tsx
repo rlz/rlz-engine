@@ -25,7 +25,7 @@ export const SignupSigninScreen = observer(function SignupSigninScreen({ appName
                 value={tab}
                 variant={'fullWidth'}
                 onChange={(_, tab) => {
-                    navigate(`/${tab}`)
+                    void navigate(`/${tab}`)
                 }}
             >
                 <Tab value={'signin'} label={'Signin'} />
@@ -61,7 +61,7 @@ function SignupForm() {
         setTimeout(async () => {
             try {
                 await signup(name, email, password, password2, authState)
-                navigate('/')
+                void navigate('/')
             } finally {
                 setSyncInProgress(false)
             }
@@ -172,7 +172,7 @@ function SigninForm() {
         setTimeout(async () => {
             try {
                 await signin(name, password, authState)
-                navigate('/')
+                void navigate('/')
             } finally {
                 setSyncInProgress(false)
             }
@@ -181,7 +181,12 @@ function SigninForm() {
 
     return (
         <Stack gap={2} mt={2}>
-            <TextField label={'Name'} value={name} onChange={e => setName(e.target.value)} />
+            <TextField
+                label={'Name'}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                autoFocus
+            />
             <TextField
                 label={'Password'}
                 type={'password'}
