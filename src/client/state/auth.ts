@@ -1,9 +1,9 @@
 import { autorun, makeAutoObservable } from 'mobx'
 
-const AUTH_ID_KEY = 'AUTH_TOKEN'
-const AUTH_NAME_KEY = 'AUTH_TOKEN'
-const AUTH_EMAIL_KEY = 'AUTH_TOKEN'
-const AUTH_TEMP_PASSWORD_KEY = 'AUTH_TOKEN'
+const AUTH_ID_KEY = 'AUTH_ID'
+const AUTH_NAME_KEY = 'AUTH_NAME'
+const AUTH_EMAIL_KEY = 'AUTH_EMAIL'
+const AUTH_TEMP_PASSWORD_KEY = 'AUTH_TEMP_PASSWORD'
 
 export class AuthState {
     id: string | null = localStorage.getItem(AUTH_ID_KEY)
