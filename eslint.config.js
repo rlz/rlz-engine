@@ -8,7 +8,9 @@ export default [
         files: [
             '*.js',
             'src/**.ts'
-        ],
+        ]
+    },
+    {
         languageOptions: {
             parser,
             parserOptions: { project: './tsconfig.eslint.json' }
