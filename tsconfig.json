@@ -2,7 +2,8 @@
     "compilerOptions": {
         "target": "ES2023",
         "lib": [
-            "esnext"
+            "esnext",
+            "DOM"
         ],
         "allowJs": true,
         "downlevelIteration": true,
@@ -18,7 +19,8 @@
         "isolatedModules": true,
         "declaration": true,
         "outDir": "dist",
-        "rootDir": "src"
+        "rootDir": "src",
+        "jsx": "react"
     },
     "exclude": [
         "*.js",

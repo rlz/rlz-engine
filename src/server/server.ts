@@ -7,10 +7,13 @@ import formatsPlugin from 'ajv-formats'
 import fastify, { FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
 import { fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
+import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 import { Logger } from 'pino'
 
 import { logger } from './logger'
+
+installIntoGlobal()
 
 export type InitServerFuncType = <S extends RawServerBase>(
     server: FastifyInstance<
@@ -36,6 +39,9 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     })
 
     if (!production) {
+        await httpServer.register(fastifyCors, {
+            methods: ['get', 'post']
+        })
         await httpServer.register(fastifyCompress)
         await httpServer.register(fastifySensible)
         await httpServer.register(fastifyResponseValidation, {
