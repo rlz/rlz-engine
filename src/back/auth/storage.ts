@@ -1,9 +1,11 @@
+import { FastifyRequest } from 'fastify'
 import { DateTime } from 'luxon'
 import { Binary, Collection } from 'mongodb'
 
 import { logger } from '../logger'
 import { MongoStorage } from '../storage/db'
 import { StorageTempPassword, StorageUser } from './model'
+import { auth } from './utils'
 
 export class AuthStorage {
     private readonly logger = logger('AuthStorage')
@@ -108,5 +110,9 @@ export class AuthStorage {
 
     get tempPasswords(): Collection<StorageTempPassword> {
         return this.mongo.db.collection('temp-passwords')
+    }
+
+    get auth() {
+        return (headers: FastifyRequest['headers']) => auth(headers, this)
     }
 }

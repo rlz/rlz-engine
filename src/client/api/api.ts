@@ -1,7 +1,6 @@
 import z, { ZodType } from 'zod'
 
 import { PRODUCTION } from '../../back/config'
-import { ApiAuthResponseV0 } from '../../shared/api/auth'
 
 const API_DOMAIN = PRODUCTION ? '/' : 'http://localhost:8080/'
 
@@ -38,8 +37,13 @@ async function prepareBody(request: object): Promise<Blob | string> {
     return new Response(bodyStreamCompressed).blob()
 }
 
+export interface AuthParam {
+    userId: string
+    tempPassword: string
+}
+
 export async function apiCall<T extends ZodType>(
-    method: string, path: string, auth: ApiAuthResponseV0 | null,
+    method: string, path: string, auth: AuthParam | null,
     queryString: Record<string, string> | null,
     request: object | null, validator: T
 ): Promise<z.infer<T>> {
@@ -55,7 +59,7 @@ export async function apiCall<T extends ZodType>(
     }
 
     if (auth !== null) {
-        headers['authorization'] = `${auth.id}:${auth.tempPassword}`
+        headers['authorization'] = `${auth.userId}:${auth.tempPassword}`
     }
 
     const u = url(path, queryString)

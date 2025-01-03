@@ -1,18 +1,16 @@
 import { httpErrors } from '@fastify/sensible'
 import { randomBytes, scryptSync } from 'crypto'
-import { FastifyInstance, FastifyRequest, RawServerBase } from 'fastify'
-import fp from 'fastify-plugin'
+import { FastifyRequest } from 'fastify'
 import { DateTime } from 'luxon'
 import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
-import zodToJsonSchema from 'zod-to-json-schema'
 
-import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0, ApiAuthResponseV0 } from '../../shared/api/auth'
+import { ApiAuthResponseV0 } from '../../shared/api/auth'
 import { AuthStorage } from './storage'
 
 const TEMP_PASSWORD_SALT = Buffer.from('cashmony-temp-password-salt', 'utf8')
 
-async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<ApiAuthResponseV0> {
+export async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<ApiAuthResponseV0> {
     const salt = randomBytes(64)
     const hash = calcHash(password, salt)
     const id = uuidv7()
@@ -34,7 +32,7 @@ async function signup(storage: AuthStorage, name: string, email: string, passwor
     }
 }
 
-async function signin(storage: AuthStorage, name: string, password: string): Promise<ApiAuthResponseV0 | null> {
+export async function signin(storage: AuthStorage, name: string, password: string): Promise<ApiAuthResponseV0 | null> {
     const u = await storage.getUser(name)
     if (u === null) {
         return null
@@ -58,12 +56,12 @@ async function signin(storage: AuthStorage, name: string, password: string): Pro
     }
 }
 
-async function logout(storage: AuthStorage, userId: string, tempPassword: string) {
+export async function logout(storage: AuthStorage, userId: string, tempPassword: string) {
     const hash = calcHash(tempPassword, TEMP_PASSWORD_SALT)
     await storage.deleteTempPassword(userId, new Binary(hash))
 }
 
-async function verifyTempPassword(storage: AuthStorage, userId: string, tempPassword: string): Promise<string> {
+export async function verifyTempPassword(storage: AuthStorage, userId: string, tempPassword: string): Promise<string> {
     const hash = calcTempPasswordHash(Buffer.from(tempPassword, 'base64'))
     const u = await storage.getUserByTempPassword(userId, new Binary(hash))
     if (u === null) {
@@ -83,65 +81,8 @@ async function makeTempPassword(storage: AuthStorage, userId: string): Promise<s
     return password.toString('base64')
 }
 
-interface AuthEndpointsOpts {
-    storage: AuthStorage
-}
-
-export const AUTH_ENDPOINTS = fp(
-    async function authEndpoints<T extends RawServerBase>(app: FastifyInstance<T>, { storage }: AuthEndpointsOpts) {
-        app.post(
-            '/api/v0/signup',
-            {
-                schema: {
-                    body: zodToJsonSchema(API_SIGNUP_REQUEST_SCHEMA_V0),
-                    response: { 200: zodToJsonSchema(API_AUTH_RESPONSE_SCHEMA_V0) }
-                }
-            },
-            async (req, _resp) => {
-                const body = API_SIGNUP_REQUEST_SCHEMA_V0.parse(req.body)
-                return await signup(storage, body.name, body.email, body.password)
-            }
-        )
-
-        app.post(
-            '/api/v0/signin',
-            {
-                schema: {
-                    body: zodToJsonSchema(API_SIGNIN_REQUEST_SCHEMA_V0),
-                    response: { 200: zodToJsonSchema(API_AUTH_RESPONSE_SCHEMA_V0) }
-                }
-            },
-            async (req, _resp) => {
-                const body = API_SIGNIN_REQUEST_SCHEMA_V0.parse(req.body)
-                const r = await signin(storage, body.name, body.password)
-                if (r === null) {
-                    return httpErrors.unauthorized()
-                }
-                return r
-            }
-        )
-
-        app.post(
-            '/api/v0/logout',
-            {
-            },
-            async (req, _resp) => {
-                const authHeader = req.headers.authorization
-
-                if (authHeader === undefined) {
-                    throw httpErrors.forbidden()
-                }
-
-                const [userId, tempPassword] = authHeader.split(':')
-
-                await logout(storage, userId, tempPassword)
-            }
-        )
-    }
-)
-
-export async function auth(req: Pick<FastifyRequest, 'headers'>, storage: AuthStorage): Promise<string> {
-    const authHeader = req.headers.authorization
+export async function auth(headers: FastifyRequest['headers'], storage: AuthStorage): Promise<string> {
+    const authHeader = headers.authorization
     if (authHeader === undefined) {
         throw httpErrors.forbidden()
     }
