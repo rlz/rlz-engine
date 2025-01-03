@@ -49,9 +49,10 @@ export const AUTH_API = fastifyPlugin(
             '/api/v0/logout',
             {
             },
-            async (req, _resp) => {
-                const authHeader = req.headers.authorization
+            async (req, resp) => {
+                await storage.auth(req.headers)
 
+                const authHeader = req.headers.authorization
                 if (authHeader === undefined) {
                     throw httpErrors.forbidden()
                 }
@@ -59,6 +60,8 @@ export const AUTH_API = fastifyPlugin(
                 const [userId, tempPassword] = authHeader.split(':')
 
                 await logout(storage, userId, tempPassword)
+
+                return resp.code(204).send()
             }
         )
     }

@@ -1,5 +1,7 @@
 import { autorun, makeAutoObservable } from 'mobx'
 
+import { AuthParam } from '../api/api'
+
 const AUTH_ID_KEY = 'AUTH_ID'
 const AUTH_NAME_KEY = 'AUTH_NAME'
 const AUTH_EMAIL_KEY = 'AUTH_EMAIL'
@@ -59,6 +61,17 @@ export class AuthState {
         this.name = name
         this.email = email
         this.tempPassword = tempPassword
+    }
+
+    get authParam(): AuthParam | null {
+        if (this.id === null || this.tempPassword === null) {
+            return null
+        }
+
+        return {
+            userId: this.id,
+            tempPassword: this.tempPassword
+        }
     }
 }
 
