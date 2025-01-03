@@ -1,7 +1,7 @@
 import fastifyCompress from '@fastify/compress'
 import fastifyCors from '@fastify/cors'
 import fastifyResponseValidation from '@fastify/response-validation'
-import fastifySensible from '@fastify/sensible'
+import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 import formatsPlugin from 'ajv-formats'
 import fastify, { FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
@@ -50,6 +50,10 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
         await init(httpServer)
 
+        httpServer.all('/api/*', async () => {
+            return httpErrors.notFound()
+        })
+
         addStaticEndpoints(httpServer, staticDir)
 
         await httpServer.listen({ host: 'localhost', port: 8080 })
@@ -85,6 +89,10 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin] } })
 
     await init(httpsServer)
+
+    httpsServer.all('/api/*', async () => {
+        return httpErrors.notFound()
+    })
 
     addStaticEndpoints(httpsServer, staticDir)
 }
