@@ -7,7 +7,7 @@ import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
 import zodToJsonSchema from 'zod-to-json-schema'
 
-import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0, ApiAuthResponseV0 } from '../auth/api'
+import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0, ApiAuthResponseV0 } from '../../shared/api/auth'
 import { AuthStorage } from './storage'
 
 const TEMP_PASSWORD_SALT = Buffer.from('cashmony-temp-password-salt', 'utf8')

@@ -1,5 +1,9 @@
 import z, { ZodType } from 'zod'
 
+export const API_GET_OBJECTS_QUERY_STRING_SCHEMA_V0 = z.object({
+    syncAfter: z.string().datetime().optional()
+})
+
 export function API_ITEMS_RESPONSE_SCHEMA_V0<T extends ZodType>(itemsSchema: T) {
     return z.object({
         items: z.array(itemsSchema).readonly()

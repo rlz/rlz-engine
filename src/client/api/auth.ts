@@ -1,4 +1,4 @@
-import { API_AUTH_RESPONSE_SCHEMA_V0, ApiAuthResponseV0, ApiSigninRequestV0, ApiSignupRequestV0 } from '../../server/auth/api'
+import { API_AUTH_RESPONSE_SCHEMA_V0, ApiAuthResponseV0, ApiSigninRequestV0, ApiSignupRequestV0 } from '../../shared/api/auth'
 import { apiCall } from './api'
 
 export async function apiSignup(name: string, email: string, password: string): Promise<ApiAuthResponseV0> {

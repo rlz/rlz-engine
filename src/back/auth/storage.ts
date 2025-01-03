@@ -2,7 +2,7 @@ import { DateTime } from 'luxon'
 import { Binary, Collection } from 'mongodb'
 
 import { logger } from '../logger'
-import { MongoStorage } from '../mongo/db'
+import { MongoStorage } from '../storage/db'
 import { StorageTempPassword, StorageUser } from './model'
 
 export class AuthStorage {

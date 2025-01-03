@@ -1,8 +1,8 @@
 import { DateTime } from 'luxon'
 import { Collection } from 'mongodb'
 
-import { SYNC_OBJECT_SCHEMA, SyncObject } from '../mongo/model'
-import { ApiComparisonObjectV0 } from './api'
+import { ApiComparisonObjectV0 } from '../../shared/api/sync'
+import { SYNC_OBJECT_SCHEMA, SyncObject } from './model'
 
 export async function getAll<T>(c: Collection<SyncObject<T>>, ownerId: string, syncAfter?: DateTime<true>): Promise<ApiComparisonObjectV0[]> {
     const items: ApiComparisonObjectV0[] = []

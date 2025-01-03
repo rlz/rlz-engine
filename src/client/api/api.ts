@@ -1,7 +1,7 @@
 import z, { ZodType } from 'zod'
 
-import { ApiAuthResponseV0 } from '../../server/auth/api'
-import { PRODUCTION } from '../../server/config'
+import { PRODUCTION } from '../../back/config'
+import { ApiAuthResponseV0 } from '../../shared/api/auth'
 
 const API_DOMAIN = PRODUCTION ? '/' : 'http://localhost:8080/'
 
