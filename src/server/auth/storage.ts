@@ -16,7 +16,7 @@ export class AuthStorage {
     async init() {
         await Promise.all([
             'users', 'temp-passwords'
-        ].map(i => this.mongo.db.createCollection(i)))
+        ].map(i => this.mongo.createCollection(i)))
 
         await this.createIndexes()
     }
