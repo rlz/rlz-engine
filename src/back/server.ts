@@ -56,12 +56,12 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
         addStaticEndpoints(httpServer, staticDir)
 
-        await httpServer.listen({ host: 'localhost', port: 8080 })
+        await httpServer.listen({ port: 8080 })
         return
     }
 
     httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
-    await httpServer.listen({ port: 80 })
+    await httpServer.listen({ port: 80, host: '::' })
 
     const certAndKey = await getCertAndKey(certDir, domain)
 
@@ -95,6 +95,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     })
 
     addStaticEndpoints(httpsServer, staticDir)
+    await httpsServer.listen({ port: 443, host: '::' })
 }
 
 function addStaticEndpoints<S extends RawServerBase>(
