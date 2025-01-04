@@ -133,7 +133,7 @@ export function ItemsSelect(props: Props): ReactElement {
                         </Box>
                     </Box>
                     {
-                        Iterator.range(pages ?? 0).map((p) => {
+                        Array.from(Iterator.range(pages ?? 0).map((p) => {
                             if (p === 0) {
                                 return undefined
                             }
@@ -146,14 +146,14 @@ export function ItemsSelect(props: Props): ReactElement {
                                     </Box>
                                 </Box>
                             )
-                        })
+                        }))
                     }
                 </Stack>
             </Box>
             <Stack direction={'row'} justifyContent={'center'} gap={1} mt={1} height={10}>
                 {
                     pages > 1
-                        ? Iterator.range(pages ?? 0).map((p) => {
+                        ? Array.from(Iterator.range(pages ?? 0).map((p) => {
                                 return (
                                     <a key={p} style={A_STYLE} onClick={() => { carouselApi?.scrollTo(p) }}>
                                         <Box
@@ -164,7 +164,7 @@ export function ItemsSelect(props: Props): ReactElement {
                                         />
                                     </a>
                                 )
-                            })
+                            }))
                         : null
                 }
             </Stack>
