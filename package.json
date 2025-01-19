@@ -1,6 +1,6 @@
 {
     "name": "rlz-engine",
-    "version": "0.0.9",
+    "version": "1.0.10",
     "description": "Deps and tools for my style of development",
     "scripts": {
         "build": "tsc",
@@ -46,6 +46,7 @@
         "@types/react-router-dom": "^5.3.3",
         "acme-client": "^5.4.0",
         "ajv-formats": "^3.0.1",
+        "cmd-ts": "^0.13.0",
         "embla-carousel-react": "^8.5.1",
         "embla-carousel-wheel-gestures": "^8.0.1",
         "fastify": "^5.1.0",
