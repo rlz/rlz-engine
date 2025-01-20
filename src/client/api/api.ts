@@ -2,8 +2,6 @@ import z, { ZodType } from 'zod'
 
 import { getFrontConfig } from '../config'
 
-const API_DOMAIN = getFrontConfig().apiDomain
-
 export class Forbidden extends Error {
     constructor(url: string) {
         super(`Forbidden: ${url}`)
@@ -11,7 +9,9 @@ export class Forbidden extends Error {
 }
 
 function url(version: string, path: string, queryString: Record<string, string> | null): string {
-    const base = `${API_DOMAIN}api/${version}/${path}`
+    const domain = getFrontConfig().apiDomain
+
+    const base = `${domain}api/${version}/${path}`
     if (queryString === null) {
         return base
     }
@@ -43,7 +43,7 @@ export interface AuthParam {
 }
 
 export async function apiCall<T extends ZodType>(
-    method: string, version: string, path: string, auth: AuthParam | null,
+    method: 'GET' | 'POST', version: string, path: string, auth: AuthParam | null,
     queryString: Record<string, string> | null,
     request: object | null, validator: T
 ): Promise<z.infer<T>> {
