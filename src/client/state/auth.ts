@@ -1,4 +1,5 @@
 import { autorun, makeAutoObservable } from 'mobx'
+import { createContext, useContext } from 'react'
 
 import { AuthParam } from '../api/api'
 
@@ -75,11 +76,14 @@ export class AuthState {
     }
 }
 
-let state: AuthState | null = null
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export const AuthStateContext = createContext<AuthState | null>(null)
 
 export function useAuthState(): AuthState {
+    const state = useContext(AuthStateContext)
+
     if (state === null) {
-        state = new AuthState()
+        throw Error('AuthState is not provided')
     }
 
     return state
