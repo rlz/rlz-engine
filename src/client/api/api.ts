@@ -1,8 +1,8 @@
 import z, { ZodType } from 'zod'
 
-import { PRODUCTION } from '../../back/config'
+import { getFrontConfig } from '../config'
 
-const API_DOMAIN = PRODUCTION ? '/' : 'http://localhost:8080/'
+const API_DOMAIN = getFrontConfig().callLocalhost ? 'http://localhost:8080/' : '/'
 
 export class Forbidden extends Error {
     constructor(url: string) {
@@ -10,8 +10,8 @@ export class Forbidden extends Error {
     }
 }
 
-function url(path: string, queryString: Record<string, string> | null): string {
-    const base = `${API_DOMAIN}api/v0/${path}`
+function url(version: string, path: string, queryString: Record<string, string> | null): string {
+    const base = `${API_DOMAIN}api/${version}/${path}`
     if (queryString === null) {
         return base
     }
@@ -43,7 +43,7 @@ export interface AuthParam {
 }
 
 export async function apiCall<T extends ZodType>(
-    method: string, path: string, auth: AuthParam | null,
+    method: string, version: string, path: string, auth: AuthParam | null,
     queryString: Record<string, string> | null,
     request: object | null, validator: T
 ): Promise<z.infer<T>> {
@@ -62,7 +62,7 @@ export async function apiCall<T extends ZodType>(
         headers['authorization'] = `${auth.userId}:${auth.tempPassword}`
     }
 
-    const u = url(path, queryString)
+    const u = url(version, path, queryString)
     const resp = await fetch(u, {
         method,
         headers,

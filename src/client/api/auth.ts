@@ -10,7 +10,7 @@ export async function apiSignup(name: string, email: string, password: string): 
         password
     }
 
-    return apiCall('post', 'signup', null, null, req, API_AUTH_RESPONSE_SCHEMA_V0)
+    return apiCall('v0', 'post', 'signup', null, null, req, API_AUTH_RESPONSE_SCHEMA_V0)
 }
 
 export async function apiSignin(name: string, password: string): Promise<ApiAuthResponseV0> {
@@ -19,9 +19,9 @@ export async function apiSignin(name: string, password: string): Promise<ApiAuth
         password
     }
 
-    return apiCall('post', 'signin', null, null, req, API_AUTH_RESPONSE_SCHEMA_V0)
+    return apiCall('v0', 'post', 'signin', null, null, req, API_AUTH_RESPONSE_SCHEMA_V0)
 }
 
 export async function apiLogout(auth: AuthParam): Promise<void> {
-    await apiCall('post', 'logout', auth, null, null, z.undefined())
+    await apiCall('v0', 'post', 'logout', auth, null, null, z.undefined())
 }
