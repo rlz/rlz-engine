@@ -2,7 +2,7 @@ import z, { ZodType } from 'zod'
 
 import { getFrontConfig } from '../config'
 
-const API_DOMAIN = getFrontConfig().callLocalhost ? 'http://localhost:8080/' : '/'
+const API_DOMAIN = getFrontConfig().apiDomain
 
 export class Forbidden extends Error {
     constructor(url: string) {

@@ -1,7 +1,7 @@
 export const PRODUCTION = process.env.NODE_ENV === 'production'
 
 export interface FrontConfig {
-    callLocalhost: boolean
+    apiDomain: string
 }
 
 let frontConfig: FrontConfig | null = null
@@ -17,7 +17,7 @@ export function initFrontConfig(cfg: FrontConfig) {
 export function getFrontConfig(): FrontConfig {
     if (frontConfig === null) {
         frontConfig = {
-            callLocalhost: !PRODUCTION
+            apiDomain: PRODUCTION ? '/' : 'http://localhost:8080/'
         }
     }
 
