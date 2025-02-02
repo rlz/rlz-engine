@@ -10,15 +10,17 @@ type StorageIndexDescription = IndexDescription & {
 export class MongoStorage {
     private readonly logger: FastifyBaseLogger
     private readonly client: MongoClient
+    private dbName: string
 
-    constructor() {
+    constructor(db: string) {
         this.logger = logger('MongoStorage')
 
+        this.dbName = db
         this.client = new MongoClient('mongodb://localhost')
     }
 
     get db(): Db {
-        return this.client.db('app-data')
+        return this.client.db(this.dbName)
     }
 
     async createCollection(name: string) {
