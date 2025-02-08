@@ -3,7 +3,7 @@ import { Collection, Db, Document, IndexDescription, MongoClient } from 'mongodb
 
 import { logger } from '../logger'
 
-type StorageIndexDescription = IndexDescription & {
+export type StorageIndexDescription = IndexDescription & {
     name: string
 }
 
