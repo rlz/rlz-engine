@@ -15,7 +15,7 @@ export class AuthStorage {
         this.mongo = mongo
     }
 
-    async create(mongo: MongoStorage) {
+    static async create(mongo: MongoStorage) {
         const s = new AuthStorage(mongo)
         await s.init()
         return s
