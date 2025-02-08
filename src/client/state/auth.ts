@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 import { AuthParam } from '../api/api'
+import { cacheLastResult } from './cached'
 
 const AUTH_ID_KEY = 'AUTH_ID'
 const AUTH_NAME_KEY = 'AUTH_NAME'
@@ -23,7 +24,16 @@ export interface AuthState {
     logout: () => void
 }
 
-let cachedAuthParam: AuthParam | null = null
+// eslint-disable-next-line @typescript-eslint/naming-convention
+const makeAuthParam = cacheLastResult(
+    function makeAuthParam(id: string | null, tempPassword: string | null): AuthParam | null {
+        if (id === null || tempPassword === null) {
+            return null
+        }
+
+        return { userId: id, tempPassword }
+    }
+)
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const useAuthState = create<AuthState>()(
@@ -37,23 +47,7 @@ export const useAuthState = create<AuthState>()(
             getAuthParam: () => {
                 const { id, tempPassword } = get()
 
-                if (id === null || tempPassword === null) {
-                    return null
-                }
-
-                if (
-                    id === cachedAuthParam?.userId
-                    && tempPassword === cachedAuthParam?.tempPassword
-                ) {
-                    return cachedAuthParam
-                }
-
-                cachedAuthParam = {
-                    userId: id,
-                    tempPassword
-                }
-
-                return cachedAuthParam
+                return makeAuthParam(id, tempPassword)
             },
             login: (id: string, name: string, email: string, tempPassword: string) => set({ id, name, email, tempPassword }),
             logout: () => set({ id: null, name: null, email: null, tempPassword: null })
