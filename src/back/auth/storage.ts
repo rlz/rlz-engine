@@ -11,11 +11,17 @@ export class AuthStorage {
     private readonly logger = logger('AuthStorage')
     private readonly mongo: MongoStorage
 
-    constructor(mongo: MongoStorage) {
+    private constructor(mongo: MongoStorage) {
         this.mongo = mongo
     }
 
-    async init() {
+    async create(mongo: MongoStorage) {
+        const s = new AuthStorage(mongo)
+        await s.init()
+        return s
+    }
+
+    private async init() {
         await Promise.all([
             'users', 'temp-passwords'
         ].map(i => this.mongo.createCollection(i)))
