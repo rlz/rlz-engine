@@ -1,5 +1,5 @@
-import { autorun, makeAutoObservable } from 'mobx'
-import { createContext, useContext } from 'react'
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 import { AuthParam } from '../api/api'
 
@@ -8,83 +8,56 @@ const AUTH_NAME_KEY = 'AUTH_NAME'
 const AUTH_EMAIL_KEY = 'AUTH_EMAIL'
 const AUTH_TEMP_PASSWORD_KEY = 'AUTH_TEMP_PASSWORD'
 
-export class AuthState {
-    id: string | null = localStorage.getItem(AUTH_ID_KEY)
-    name: string | null = localStorage.getItem(AUTH_NAME_KEY)
-    email: string | null = localStorage.getItem(AUTH_EMAIL_KEY)
-    tempPassword: string | null = localStorage.getItem(AUTH_TEMP_PASSWORD_KEY)
+localStorage.removeItem(AUTH_ID_KEY)
+localStorage.removeItem(AUTH_NAME_KEY)
+localStorage.removeItem(AUTH_EMAIL_KEY)
+localStorage.removeItem(AUTH_TEMP_PASSWORD_KEY)
 
-    constructor() {
-        makeAutoObservable(this)
-
-        autorun(() => {
-            if (this.id !== null) {
-                localStorage.setItem(AUTH_ID_KEY, this.id)
-            } else {
-                localStorage.removeItem(AUTH_ID_KEY)
-            }
-        })
-
-        autorun(() => {
-            if (this.name !== null) {
-                localStorage.setItem(AUTH_NAME_KEY, this.name)
-            } else {
-                localStorage.removeItem(AUTH_NAME_KEY)
-            }
-        })
-
-        autorun(() => {
-            if (this.email !== null) {
-                localStorage.setItem(AUTH_EMAIL_KEY, this.email)
-            } else {
-                localStorage.removeItem(AUTH_EMAIL_KEY)
-            }
-        })
-
-        autorun(() => {
-            if (this.tempPassword !== null) {
-                localStorage.setItem(AUTH_TEMP_PASSWORD_KEY, this.tempPassword)
-            } else {
-                localStorage.removeItem(AUTH_TEMP_PASSWORD_KEY)
-            }
-        })
-    }
-
-    logout() {
-        this.id = null
-        this.name = null
-        this.email = null
-        this.tempPassword = null
-    }
-
-    login(id: string, name: string, email: string, tempPassword: string) {
-        this.id = id
-        this.name = name
-        this.email = email
-        this.tempPassword = tempPassword
-    }
-
-    get authParam(): AuthParam | null {
-        if (this.id === null || this.tempPassword === null) {
-            return null
-        }
-
-        return {
-            userId: this.id,
-            tempPassword: this.tempPassword
-        }
-    }
+export interface AuthState {
+    id: string | null
+    name: string | null
+    email: string | null
+    tempPassword: string | null
+    getAuthParam: () => AuthParam | null
+    login: (id: string, name: string, email: string, tempPassword: string) => void
+    logout: () => void
 }
+
+let cachedAuthParam: AuthParam | null = null
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
-export const AuthStateContext = createContext<AuthState | null>(null)
+export const useAuthState = create<AuthState>()(
+    persist(
+        (set, get) => ({
+            id: null,
+            name: null,
+            email: null,
+            tempPassword: null,
 
-export function useAuthState(): AuthState {
-    const state = useContext(AuthStateContext)
+            getAuthParam: () => {
+                const { id, tempPassword } = get()
 
-    if (state === null) {
-        throw Error('AuthState is not provided')
-    }
+                if (id === null || tempPassword === null) {
+                    return null
+                }
 
-    return state
-}
+                if (
+                    id === cachedAuthParam?.userId
+                    && tempPassword === cachedAuthParam?.tempPassword
+                ) {
+                    return cachedAuthParam
+                }
+
+                cachedAuthParam = {
+                    userId: id,
+                    tempPassword
+                }
+
+                return cachedAuthParam
+            },
+            login: (id: string, name: string, email: string, tempPassword: string) => set({ id, name, email, tempPassword }),
+            logout: () => set({ id: null, name: null, email: null, tempPassword: null })
+        }),
+        { name: 'AUTH' }
+    )
+)

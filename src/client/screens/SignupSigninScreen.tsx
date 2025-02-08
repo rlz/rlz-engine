@@ -1,5 +1,4 @@
 import { Box, Button, CircularProgress, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
-import { observer } from 'mobx-react-lite'
 import React from 'react'
 import { JSX, useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -12,8 +11,7 @@ interface SignupSigninScreenProps {
     appName: string
 }
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const SignupSigninScreen = observer(function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.Element {
+export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.Element {
     const location = useLocation()
     const navigate = useNavigate()
     const tab = location.pathname.substring(1)
@@ -41,11 +39,11 @@ export const SignupSigninScreen = observer(function SignupSigninScreen({ appName
             }
         </Stack>
     )
-})
+}
 
 function SignupForm() {
-    const authState = useAuthState()
     const navigate = useNavigate()
+    const login = useAuthState(i => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
     const [name, setName] = useState('')
     const [nameActivated, setNameActivated] = useState(false)
@@ -60,7 +58,7 @@ function SignupForm() {
         setSyncInProgress(true)
         setTimeout(async () => {
             try {
-                await signup(name, email, password, password2, authState)
+                await signup(login, name, email, password, password2)
                 void navigate('/')
             } finally {
                 setSyncInProgress(false)
@@ -145,7 +143,7 @@ function SignupForm() {
     )
 }
 
-async function signup(name: string, email: string, password: string, password2: string, authState: AuthState) {
+async function signup(login: AuthState['login'], name: string, email: string, password: string, password2: string) {
     if (
         name === ''
         || !isValidEmail(email)
@@ -157,11 +155,11 @@ async function signup(name: string, email: string, password: string, password2: 
 
     const resp = await apiSignup(name, email, password)
 
-    authState.login(resp.id, resp.name, resp.email, resp.tempPassword)
+    login(resp.id, resp.name, resp.email, resp.tempPassword)
 }
 
 function SigninForm() {
-    const authState = useAuthState()
+    const login = useAuthState(i => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
     const navigate = useNavigate()
     const [name, setName] = useState('')
@@ -171,7 +169,7 @@ function SigninForm() {
         setSyncInProgress(true)
         setTimeout(async () => {
             try {
-                await signin(name, password, authState)
+                await signin(login, name, password)
                 void navigate('/')
             } finally {
                 setSyncInProgress(false)
@@ -228,10 +226,9 @@ function SigninForm() {
     )
 }
 
-async function signin(name: string, password: string, authState: AuthState) {
+async function signin(login: AuthState['login'], name: string, password: string) {
     const resp = await apiSignin(name, password)
-
-    authState.login(resp.id, resp.name, resp.email, resp.tempPassword)
+    login(resp.id, resp.name, resp.email, resp.tempPassword)
 }
 
 function isValidEmail(s: string): boolean {
