@@ -1,9 +1,13 @@
+import { produce, WritableDraft } from 'immer'
 import { Logger, LoggerOptions, pino } from 'pino'
 
 import { PRODUCTION } from './config'
 
-export function logger(name: string): Logger {
-    return pino(loggerOptions(name))
+export function logger(name: string, optionsRecipe?: (draft: WritableDraft<LoggerOptions>) => WritableDraft<LoggerOptions>): Logger {
+    const options = optionsRecipe === undefined
+        ? loggerOptions(name)
+        : produce(loggerOptions(name), optionsRecipe)
+    return pino(options)
 }
 
 export function loggerOptions(name: string): LoggerOptions {
@@ -22,7 +26,8 @@ export function loggerOptions(name: string): LoggerOptions {
                     //     target: 'pino-'
                     // }
                 ]
-            }
+            },
+            level: 'info'
         }
     }
 
@@ -35,6 +40,7 @@ export function loggerOptions(name: string): LoggerOptions {
                     target: 'pino-pretty'
                 }
             ]
-        }
+        },
+        level: 'trace'
     }
 }
