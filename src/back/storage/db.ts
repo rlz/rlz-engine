@@ -36,21 +36,27 @@ export class MongoStorage {
 
         knownIndexes.delete('_id_')
 
+        const indexesToCreate: StorageIndexDescription[] = []
+
         for (const index of indexes) {
             if (knownIndexes.has(index.name)) {
                 knownIndexes.delete(index.name)
                 continue
             }
 
-            this.logger.info({ index, collection: collection.collectionName }, 'Create index')
-
-            await collection.createIndexes([index])
+            indexesToCreate.push(index)
         }
 
         for (const name of knownIndexes) {
             this.logger.info({ index: name, collection: collection.collectionName }, 'Drop index')
 
             await collection.dropIndex(name)
+        }
+
+        for (const index of indexesToCreate) {
+            this.logger.info({ index, collection: collection.collectionName }, 'Create index')
+
+            await collection.createIndexes([index])
         }
     }
 
