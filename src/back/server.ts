@@ -32,7 +32,11 @@ export interface RunServerParams {
     init: InitServerFuncType
 }
 
+const L = logger('init')
+
 export async function runServer({ production, domain, certDir, staticDir, init }: RunServerParams) {
+    L.info({ production }, 'runServer')
+
     const httpServer = fastify({
         loggerInstance: logger('http'),
         ajv: { plugins: [formatsPlugin] }
@@ -63,7 +67,11 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
     await httpServer.listen({ port: 80, host: '::' })
 
+    L.info('Get certificates')
+
     const certAndKey = await getCertAndKey(certDir, domain)
+
+    L.info('Init secure server')
 
     const httpsServer = fastify({
         http2: true,
@@ -96,6 +104,8 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
     addStaticEndpoints(httpsServer, staticDir)
     await httpsServer.listen({ port: 443, host: '::' })
+
+    L.info('runServer done')
 }
 
 function addStaticEndpoints<S extends RawServerBase>(
