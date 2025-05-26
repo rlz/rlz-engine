@@ -4,7 +4,7 @@ import { getFrontConfig } from '../config'
 
 export class Unauthorized extends Error {
     constructor(url: string) {
-        super(`Forbidden: ${url}`)
+        super(`Unauthorized: ${url}`)
     }
 }
 
