@@ -2,6 +2,12 @@ import z, { ZodType } from 'zod'
 
 import { getFrontConfig } from '../config'
 
+export class Unauthorized extends Error {
+    constructor(url: string) {
+        super(`Forbidden: ${url}`)
+    }
+}
+
 export class Forbidden extends Error {
     constructor(url: string) {
         super(`Forbidden: ${url}`)
@@ -70,9 +76,14 @@ export async function apiCall<T extends ZodType>(
     })
 
     if (!resp.ok) {
+        if (resp.status === 401) {
+            throw new Unauthorized(u)
+        }
+
         if (resp.status === 403) {
             throw new Forbidden(u)
         }
+
         throw Error(`Not ok resp (${resp.status} ${resp.statusText}): ${method} ${u}`)
     }
 
