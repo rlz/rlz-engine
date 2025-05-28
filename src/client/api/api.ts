@@ -2,15 +2,36 @@ import z, { ZodType } from 'zod'
 
 import { getFrontConfig } from '../config'
 
-export class Unauthorized extends Error {
-    constructor(url: string) {
-        super(`Unauthorized: ${url}`)
+export class HttpError extends Error {
+    readonly method: string
+    readonly url: string
+    readonly status: number
+    readonly statusText: string
+
+    constructor(method: string, url: string, status: number, statusText: string) {
+        super(`Not ok resp (${status} ${statusText}): ${method} ${url}`)
+        this.method = method
+        this.url = url
+        this.status = status
+        this.statusText = statusText
     }
 }
 
-export class Forbidden extends Error {
-    constructor(url: string) {
-        super(`Forbidden: ${url}`)
+export class Unauthorized extends HttpError {
+    constructor(method: string, url: string, statusText: string) {
+        super(method, url, 401, statusText)
+    }
+}
+
+export class Forbidden extends HttpError {
+    constructor(method: string, url: string, statusText: string) {
+        super(method, url, 403, statusText)
+    }
+}
+
+export class NotFound extends HttpError {
+    constructor(method: string, url: string, statusText: string) {
+        super(method, url, 404, statusText)
     }
 }
 
@@ -77,14 +98,18 @@ export async function apiCall<T extends ZodType>(
 
     if (!resp.ok) {
         if (resp.status === 401) {
-            throw new Unauthorized(u)
+            throw new Unauthorized(method, u, resp.statusText)
         }
 
         if (resp.status === 403) {
-            throw new Forbidden(u)
+            throw new Forbidden(method, u, resp.statusText)
         }
 
-        throw Error(`Not ok resp (${resp.status} ${resp.statusText}): ${method} ${u}`)
+        if (resp.status === 404) {
+            throw new NotFound(method, u, resp.statusText)
+        }
+
+        throw new HttpError(method, u, resp.status, resp.statusText)
     }
 
     if (resp.status === 204) {
