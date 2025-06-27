@@ -21,9 +21,9 @@
         "dist"
     ],
     "devDependencies": {
-        "@stylistic/eslint-plugin": "^4.2.0",
+        "@stylistic/eslint-plugin": "^5.0.0",
         "@types/luxon": "^3.4.2",
-        "@types/node": "^22.10.1",
+        "@types/node": "^24.0.5",
         "@typescript-eslint/parser": "^8.16.0",
         "eslint": "^9.16.0",
         "eslint-plugin-simple-import-sort": "^12.1.1",
