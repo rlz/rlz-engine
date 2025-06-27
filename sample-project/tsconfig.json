@@ -2,7 +2,8 @@
     "compilerOptions": {
         "target": "ES2023",
         "lib": [
-            "esnext"
+            "esnext",
+            "DOM"
         ],
         "allowJs": true,
         "downlevelIteration": true,
@@ -17,10 +18,7 @@
         "resolveJsonModule": true,
         "isolatedModules": true,
         "declaration": true,
-        "noEmit": true
-    },
-    "exclude": [
-        "js",
-        "sample-project"
-    ]
+        "outDir": "dist",
+        "jsx": "react"
+    }
 }

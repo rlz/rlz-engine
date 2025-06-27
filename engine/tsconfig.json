@@ -24,7 +24,6 @@
     },
     "exclude": [
         "*.js",
-        "dist",
-        "sample-project"
+        "dist"
     ]
 }

@@ -1,9 +1,10 @@
 import stylistic from '@stylistic/eslint-plugin'
 import parser from '@typescript-eslint/parser'
+import { defineConfig } from 'eslint/config'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import tsEslint from 'typescript-eslint'
 
-export default [
+export default defineConfig([
     {
         files: [
             '*.js',
@@ -13,7 +14,7 @@ export default [
     {
         languageOptions: {
             parser,
-            parserOptions: { project: './tsconfig.eslint.json' }
+            parserOptions: { project: './tsconfig.json' }
         }
     },
     ...tsEslint.configs.recommended,
@@ -64,4 +65,4 @@ export default [
             ]
         }
     }
-]
+])

@@ -1,0 +1,71 @@
+{
+    "name": "rlz-engine-sample-project",
+    "version": "0.0.0",
+    "description": "Sample project",
+    "scripts": {
+        "start": "tsx src/main.ts"
+    },
+    "author": "Dmitry Maslennikov <maslennikovdm@gmail.com>",
+    "license": "ISC",
+    "homepage": "https://github.com/rlz/rlz-engine",
+    "bugs": {
+        "url": "https://github.com/rlz/rlz-engine/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rlz/rlz-engine.git"
+    },
+    "type": "module",
+    "files": [
+        "dist"
+    ],
+    "devDependencies": {
+        "@stylistic/eslint-plugin": "^4.2.0",
+        "@types/luxon": "^3.4.2",
+        "@types/node": "^22.10.1",
+        "@typescript-eslint/parser": "^8.16.0",
+        "eslint": "^9.16.0",
+        "eslint-plugin-simple-import-sort": "^12.1.1",
+        "tsx": "^4.19.2",
+        "typescript": "^5.7.2",
+        "typescript-eslint": "^8.16.0"
+    },
+    "dependencies": {
+        "@emotion/react": "^11.14.0",
+        "@emotion/styled": "^11.14.0",
+        "@fastify/compress": "^8.0.1",
+        "@fastify/cors": "^11.0.1",
+        "@fastify/response-validation": "^3.0.2",
+        "@fastify/sensible": "^6.0.1",
+        "@fastify/static": "^8.0.3",
+        "@fontsource/roboto": "^5.0.12",
+        "@mui/icons-material": "^7.0.2",
+        "@mui/material": "^7.0.2",
+        "@types/react": "^19.0.2",
+        "@types/react-dom": "^19.0.2",
+        "@types/react-router-dom": "^5.3.3",
+        "acme-client": "^5.4.0",
+        "ajv-formats": "^3.0.1",
+        "cmd-ts": "^0.13.0",
+        "embla-carousel-react": "^8.5.1",
+        "embla-carousel-wheel-gestures": "^8.0.1",
+        "fastify": "^5.1.0",
+        "fastify-acme": "^1.0.5",
+        "fastify-plugin": "^5.0.1",
+        "immer": "^10.1.1",
+        "iterator-helpers-polyfill": "^3.0.1",
+        "luxon": "^3.5.0",
+        "mongodb": "^6.12.0",
+        "pino": "^9.5.0",
+        "pino-pretty": "^13.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+        "react-resize-detector": "^12.0.2",
+        "react-router-dom": "^7.1.1",
+        "rlz-engine": "file:../engine",
+        "uuidv7": "^1.0.2",
+        "zod": "^3.23.8",
+        "zod-to-json-schema": "^3.23.5",
+        "zustand": "^5.0.3"
+    }
+}
