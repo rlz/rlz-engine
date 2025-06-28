@@ -1,7 +1,7 @@
 import { FastifyBaseLogger } from 'fastify'
 import { Collection, Db, Document, IndexDescription, MongoClient } from 'mongodb'
 
-import { logger } from '../logger'
+import { logger } from '../logger.js'
 
 export type StorageIndexDescription = IndexDescription & {
     name: string

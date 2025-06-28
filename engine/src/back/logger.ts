@@ -1,7 +1,7 @@
 import { produce, WritableDraft } from 'immer'
 import { Logger, LoggerOptions, pino } from 'pino'
 
-import { PRODUCTION } from './config'
+import { PRODUCTION } from './config.js'
 
 export function logger(name: string, optionsRecipe?: (draft: WritableDraft<LoggerOptions>) => WritableDraft<LoggerOptions>): Logger {
     const options = optionsRecipe === undefined

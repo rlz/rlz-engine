@@ -5,8 +5,8 @@ import { DateTime } from 'luxon'
 import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
 
-import { ApiAuthResponseV0 } from '../../shared/api/auth'
-import { AuthStorage } from './storage'
+import { ApiAuthResponseV0 } from '../../shared/api/auth.js'
+import { AuthStorage } from './storage.js'
 
 const TEMP_PASSWORD_SALT = Buffer.from('cashmony-temp-password-salt', 'utf8')
 

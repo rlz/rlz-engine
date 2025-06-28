@@ -2,10 +2,10 @@ import { FastifyRequest } from 'fastify'
 import { DateTime } from 'luxon'
 import { Binary, Collection } from 'mongodb'
 
-import { logger } from '../logger'
-import { MongoStorage } from '../storage/db'
-import { StorageTempPassword, StorageUser } from './model'
-import { auth } from './utils'
+import { logger } from '../logger.js'
+import { MongoStorage } from '../storage/db.js'
+import { StorageTempPassword, StorageUser } from './model.js'
+import { auth } from './utils.js'
 
 export class AuthStorage {
     private readonly logger = logger('AuthStorage')

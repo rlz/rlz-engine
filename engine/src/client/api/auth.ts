@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { API_AUTH_RESPONSE_SCHEMA_V0, ApiAuthResponseV0, ApiSigninRequestV0, ApiSignupRequestV0 } from '../../shared/api/auth'
-import { apiCall, AuthParam } from './api'
+import { API_AUTH_RESPONSE_SCHEMA_V0, ApiAuthResponseV0, ApiSigninRequestV0, ApiSignupRequestV0 } from '../../shared/api/auth.js'
+import { apiCall, AuthParam } from './api.js'
 
 export async function apiSignup(name: string, email: string, password: string): Promise<ApiAuthResponseV0> {
     const req: ApiSignupRequestV0 = {

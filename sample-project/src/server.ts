@@ -1,4 +1,6 @@
-import { runServer } from 'rlz-engine/dist/back/server'
+import { runServer } from 'rlz-engine/back/server.js'
+
+import { RPC } from './rpc.js'
 
 await runServer({
     production: false,
@@ -12,5 +14,7 @@ await runServer({
                 return 'Hello world!'
             }
         )
+
+        server.register(RPC.makeFastifyPlugin())
     }
 })

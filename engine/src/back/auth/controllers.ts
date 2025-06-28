@@ -1,11 +1,11 @@
 import { httpErrors } from '@fastify/sensible'
 import { FastifyInstance, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
-import zodToJsonSchema from 'zod-to-json-schema'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 
-import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0 } from '../../shared/api/auth'
-import { AuthStorage } from './storage'
-import { logout, signin, signup } from './utils'
+import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0 } from '../../shared/api/auth.js'
+import { AuthStorage } from './storage.js'
+import { logout, signin, signup } from './utils.js'
 
 interface AuthEndpointsOpts {
     storage: AuthStorage

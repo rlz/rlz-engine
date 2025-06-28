@@ -4,8 +4,8 @@ import { JSX, useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
-import { apiSignin, apiSignup } from '../api/auth'
-import { AuthState, useAuthState } from '../state/auth'
+import { apiSignin, apiSignup } from '../api/auth.js'
+import { AuthState, useAuthState } from '../state/auth.js'
 
 interface SignupSigninScreenProps {
     appName: string

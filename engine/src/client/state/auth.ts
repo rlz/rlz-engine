@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-import { AuthParam } from '../api/api'
-import { cacheLastResult } from './cached'
+import { AuthParam } from '../api/api.js'
+import { cacheLastResult } from './cached.js'
 
 const AUTH_ID_KEY = 'AUTH_ID'
 const AUTH_NAME_KEY = 'AUTH_NAME'

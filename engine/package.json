@@ -17,6 +17,11 @@
         "url": "git+https://github.com/rlz/rlz-engine.git"
     },
     "type": "module",
+    "exports": {
+        "./back/*": "./dist/back/*",
+        "./client/*": "./dist/client/*",
+        "./shared/*": "./dist/shared/*"
+    },
     "files": [
         "dist"
     ],
@@ -66,6 +71,7 @@
         "uuidv7": "^1.0.2",
         "zod": "^3.23.8",
         "zod-to-json-schema": "^3.23.5",
+        "zod-to-ts": "^1.2.0",
         "zustand": "^5.0.3"
     }
 }

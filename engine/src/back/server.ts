@@ -1,6 +1,6 @@
 import fastifyCompress from '@fastify/compress'
 import fastifyCors from '@fastify/cors'
-import fastifyResponseValidation from '@fastify/response-validation'
+import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 import formatsPlugin from 'ajv-formats'
@@ -11,7 +11,7 @@ import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 import { Logger } from 'pino'
 
-import { logger } from './logger'
+import { logger } from './logger.js'
 
 installIntoGlobal()
 
@@ -39,7 +39,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
     const httpServer = fastify({
         loggerInstance: logger('http'),
-        ajv: { plugins: [formatsPlugin], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
+        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
     })
 
     if (!production) {
@@ -49,7 +49,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
         await httpServer.register(fastifyCompress)
         await httpServer.register(fastifySensible)
         await httpServer.register(fastifyResponseValidation, {
-            ajv: { plugins: [formatsPlugin], useDefaults: false, coerceTypes: false, allErrors: true }
+            ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true }
         })
 
         await init(httpServer)
@@ -81,7 +81,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
             key: certAndKey.pkey
         },
         loggerInstance: logger('https'),
-        ajv: { plugins: [formatsPlugin], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
+        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
     })
 
     await httpsServer.register(fastifyAcmeSecurePlugin, {
@@ -94,7 +94,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     })
     await httpsServer.register(fastifyCompress)
     await httpsServer.register(fastifySensible)
-    await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin], useDefaults: false, coerceTypes: false, allErrors: true } })
+    await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true } })
 
     await init(httpsServer)
 
