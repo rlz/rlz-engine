@@ -24,7 +24,7 @@ interface RpcEndpointAnon<BodyT extends object = object, RespT extends object = 
 interface RpcEndpointAuth<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> extends RpcEndpointCommon<BodyT, RespT> {
     readonly anonimous?: false
 
-    readonly auth: (userId: string, password: string) => UserT | Promise<UserT>
+    readonly auth: (userId: string, password: string, opts: OptsT) => UserT | Promise<UserT>
 
     readonly action: (
         user: UserT,
@@ -79,7 +79,7 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                             throw httpErrors.forbidden()
                         }
                         const [userId, password] = authHeader.split(':')
-                        const user = await endpoint.auth(userId, password)
+                        const user = await endpoint.auth(userId, password, opts)
 
                         const body = req.body as BodyT
                         const respBody = await endpoint.action(user, body, opts)
