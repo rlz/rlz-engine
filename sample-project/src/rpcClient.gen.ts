@@ -1,14 +1,14 @@
 import { AuthParam, rpcCall } from 'rlz-engine/client/rpc.js'
-type RpcBodyTestTestV1 = {
+export type RpcBodyTestTestV1 = {
     name: string
 }
-type RpcRespTestTestV1 = {
+export type RpcRespTestTestV1 = {
     greetings: string
 }
-type RpcBodyTestTestAuthV1 = {
+export type RpcBodyTestTestAuthV1 = {
     name: string
 }
-type RpcRespTestTestAuthV1 = {
+export type RpcRespTestTestAuthV1 = {
     greetings: string
     userId: string
     password: string
