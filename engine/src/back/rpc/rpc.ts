@@ -58,7 +58,7 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
 
         reg<T extends RawServerBase>(app: FastifyInstance<T>, opts: OptsT) {
             app.post(
-                `/rpc/${pluginName}/${this.name}/v${this.v}`,
+                `/rpc/${pluginName}_${this.name}_v${this.v}`,
                 {
                     schema: {
                         body: zodToJsonSchema(this.bodySchema),

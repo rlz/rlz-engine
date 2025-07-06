@@ -36,7 +36,7 @@ export class NotFound extends HttpError {
 function url(rpcName: string, callName: string, version: number): string {
     const domain = getFrontConfig().apiDomain
 
-    return `${domain}rpc/${rpcName}/${callName}/v${version}`
+    return `${domain}rpc/${rpcName}_${callName}_v${version}`
 }
 
 const GZIP_THRESHOLD = 16 * 1024
