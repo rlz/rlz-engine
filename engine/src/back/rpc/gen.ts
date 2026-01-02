@@ -1,5 +1,5 @@
 import ts, { NewLineKind, ScriptKind, ScriptTarget } from 'typescript'
-import { zodToTs } from 'zod-to-ts'
+import { createAuxiliaryTypeStore, zodToTs } from 'zod-to-ts'
 
 import { RpcEndpointInfo, RpcPluginBuilder } from './rpc.js'
 
@@ -147,10 +147,11 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
 }
 
 function generateTypes(rpcName: string, e: RpcEndpointInfo, p: (node: ts.Node) => string) {
+    const typeStore = createAuxiliaryTypeStore()
     const resp: string[] = []
 
     const bodyTypeName = createBodyTypeName(rpcName, e)
-    const bodyType = zodToTs(e.bodySchema, bodyTypeName)
+    const bodyType = zodToTs(e.bodySchema, { auxiliaryTypeStore: typeStore })
 
     const bodyTypeAlias = F.createTypeAliasDeclaration(
         [F.createToken(ts.SyntaxKind.ExportKeyword)],
@@ -162,7 +163,7 @@ function generateTypes(rpcName: string, e: RpcEndpointInfo, p: (node: ts.Node) =
     resp.push(p(bodyTypeAlias))
 
     const respTypeName = createRespTypeName(rpcName, e)
-    const respType = zodToTs(e.respSchema, respTypeName)
+    const respType = zodToTs(e.respSchema, { auxiliaryTypeStore: typeStore })
     const respTypeAlias = F.createTypeAliasDeclaration(
         [F.createToken(ts.SyntaxKind.ExportKeyword)],
         F.createIdentifier(respTypeName),

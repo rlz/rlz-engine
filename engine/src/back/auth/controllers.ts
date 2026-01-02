@@ -1,7 +1,6 @@
 import { httpErrors } from '@fastify/sensible'
 import { FastifyInstance, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 
 import { API_AUTH_RESPONSE_SCHEMA_V0, API_SIGNIN_REQUEST_SCHEMA_V0, API_SIGNUP_REQUEST_SCHEMA_V0 } from '../../shared/api/auth.js'
 import { AuthStorage } from './storage.js'
@@ -17,8 +16,8 @@ export const AUTH_API = fastifyPlugin(
             '/api/v0/signup',
             {
                 schema: {
-                    body: zodToJsonSchema(API_SIGNUP_REQUEST_SCHEMA_V0),
-                    response: { 200: zodToJsonSchema(API_AUTH_RESPONSE_SCHEMA_V0) }
+                    body: API_SIGNUP_REQUEST_SCHEMA_V0.toJSONSchema(),
+                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema() }
                 }
             },
             async (req, _resp) => {
@@ -31,8 +30,8 @@ export const AUTH_API = fastifyPlugin(
             '/api/v0/signin',
             {
                 schema: {
-                    body: zodToJsonSchema(API_SIGNIN_REQUEST_SCHEMA_V0),
-                    response: { 200: zodToJsonSchema(API_AUTH_RESPONSE_SCHEMA_V0) }
+                    body: API_SIGNIN_REQUEST_SCHEMA_V0.toJSONSchema(),
+                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema() }
                 }
             },
             async (req, _resp) => {

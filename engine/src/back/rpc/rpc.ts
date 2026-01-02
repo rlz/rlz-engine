@@ -2,7 +2,6 @@ import { httpErrors } from '@fastify/sensible'
 import { FastifyInstance, FastifyPluginOptions, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import z from 'zod'
-import { zodToJsonSchema } from 'zod-to-json-schema'
 
 interface RpcEndpointCommon<BodyT extends object, RespT extends object> {
     readonly v: number
@@ -61,9 +60,9 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                 `/rpc/${pluginName}_${this.name}_v${this.v}`,
                 {
                     schema: {
-                        body: zodToJsonSchema(this.bodySchema),
+                        body: this.bodySchema.toJSONSchema(),
                         response: {
-                            200: zodToJsonSchema(this.respSchema)
+                            200: this.respSchema.toJSONSchema()
                         }
                     }
                 },
