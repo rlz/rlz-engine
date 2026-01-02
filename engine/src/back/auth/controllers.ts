@@ -16,8 +16,8 @@ export const AUTH_API = fastifyPlugin(
             '/api/v0/signup',
             {
                 schema: {
-                    body: API_SIGNUP_REQUEST_SCHEMA_V0.toJSONSchema(),
-                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema() }
+                    body: API_SIGNUP_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
+                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
                 }
             },
             async (req, _resp) => {
@@ -30,8 +30,8 @@ export const AUTH_API = fastifyPlugin(
             '/api/v0/signin',
             {
                 schema: {
-                    body: API_SIGNIN_REQUEST_SCHEMA_V0.toJSONSchema(),
-                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema() }
+                    body: API_SIGNIN_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
+                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
                 }
             },
             async (req, _resp) => {

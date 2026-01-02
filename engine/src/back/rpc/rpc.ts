@@ -60,9 +60,9 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                 `/rpc/${pluginName}_${this.name}_v${this.v}`,
                 {
                     schema: {
-                        body: this.bodySchema.toJSONSchema(),
+                        body: this.bodySchema.toJSONSchema({ target: 'draft-07' }),
                         response: {
-                            200: this.respSchema.toJSONSchema()
+                            200: this.respSchema.toJSONSchema({ target: 'draft-07' })
                         }
                     }
                 },

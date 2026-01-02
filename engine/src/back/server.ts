@@ -39,7 +39,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
     const httpServer = fastify({
         loggerInstance: logger('http'),
-        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
+        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 
     if (!production) {
@@ -49,7 +49,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
         await httpServer.register(fastifyCompress)
         await httpServer.register(fastifySensible)
         await httpServer.register(fastifyResponseValidation, {
-            ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true }
+            ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
         })
 
         await init(httpServer)
@@ -81,7 +81,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
             key: certAndKey.pkey
         },
         loggerInstance: logger('https'),
-        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true } }
+        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 
     await httpsServer.register(fastifyAcmeSecurePlugin, {
@@ -94,7 +94,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     })
     await httpsServer.register(fastifyCompress)
     await httpsServer.register(fastifySensible)
-    await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true } })
+    await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } })
 
     await init(httpsServer)
 

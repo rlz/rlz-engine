@@ -1,6 +1,6 @@
 {
     "name": "rlz-engine",
-    "version": "1.0.41",
+    "version": "1.0.44",
     "description": "Deps and tools for my style of development",
     "scripts": {
         "build": "tsc",
