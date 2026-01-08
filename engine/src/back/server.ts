@@ -34,7 +34,7 @@ export interface RunServerParams {
 
 const L = logger('init')
 
-export async function runServer({ production, domain, certDir, staticDir, init }: RunServerParams) {
+export async function runServer({ production, domain, certDir, staticDir, init }: RunServerParams): Promise<() => Promise<void>> {
     L.info({ production }, 'runServer')
 
     const httpServer = fastify({
@@ -61,7 +61,9 @@ export async function runServer({ production, domain, certDir, staticDir, init }
         addStaticEndpoints(httpServer, staticDir)
 
         await httpServer.listen({ port: 8080 })
-        return
+        return async () => {
+            await httpServer.close()
+        }
     }
 
     httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
@@ -106,6 +108,12 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     await httpsServer.listen({ port: 443, host: '::' })
 
     L.info('runServer done')
+    return async () => {
+        await Promise.all([
+            httpServer.close(),
+            httpsServer.close()
+        ])
+    }
 }
 
 function addStaticEndpoints<S extends RawServerBase>(
