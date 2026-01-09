@@ -99,7 +99,7 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
 
                         const body = req.body as BodyT
                         const respBody = await endpoint.action(user, body, opts)
-                        resp.send(respBody)
+                        await resp.send(respBody)
                     }
             )
         }
