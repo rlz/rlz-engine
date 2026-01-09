@@ -18,7 +18,7 @@ export const RPC = rpc<object>('test').add({
     }
 }).add({
     v: 1,
-    name: 'testAuth',
+    name: 'test-auth',
     bodySchema: z.object({
         name: z.string()
     }),

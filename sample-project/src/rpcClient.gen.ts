@@ -16,5 +16,5 @@ export type RpcRespTestTestAuthV1 = {
 export const RPC_CLIENT = { test: { test: async (body: RpcBodyTestTestV1): Promise<RpcRespTestTestV1> => {
     return await rpcCall(null, 'test', 'test', 1, body)
 }, testAuth: async (auth: AuthParam, body: RpcBodyTestTestAuthV1): Promise<RpcRespTestTestAuthV1> => {
-    return await rpcCall(auth, 'test', 'testAuth', 1, body)
+    return await rpcCall(auth, 'test', 'test-auth', 1, body)
 } } }

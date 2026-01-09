@@ -48,7 +48,7 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
     const props = rpcBuilders.map((b) => {
         const calls = b.endpoints.map((e) => {
             return F.createPropertyAssignment(
-                F.createIdentifier(e.name),
+                F.createIdentifier(kebabToPascalCase(e.name)),
                 F.createArrowFunction(
                     [F.createToken(ts.SyntaxKind.AsyncKeyword)],
                     undefined,
@@ -117,7 +117,7 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
         })
 
         return F.createPropertyAssignment(
-            F.createIdentifier(b.name),
+            F.createIdentifier(kebabToPascalCase(b.name)),
             F.createObjectLiteralExpression(
                 calls,
                 false
@@ -176,14 +176,18 @@ function generateTypes(rpcName: string, e: RpcEndpointInfo, p: (node: ts.Node) =
     return resp
 }
 
-function firstLetterUp(text: string) {
-    return `${text[0].toUpperCase()}${text.substring(1)}`
+function kebabToPascalCase(input: string, firstLetterUp: boolean = false): string {
+    if (firstLetterUp) {
+        return input.replace(/(^|-)([a-z])/g, (_, __, c) => c.toUpperCase())
+    }
+
+    return input.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
 }
 
 function createBodyTypeName(rpcName: string, e: RpcEndpointInfo) {
-    return `RpcBody${firstLetterUp(rpcName)}${firstLetterUp(e.name)}V${e.v}`
+    return `RpcBody${kebabToPascalCase(rpcName, true)}${kebabToPascalCase(e.name, true)}V${e.v}`
 }
 
 function createRespTypeName(rpcName: string, e: RpcEndpointInfo) {
-    return `RpcResp${firstLetterUp(rpcName)}${firstLetterUp(e.name)}V${e.v}`
+    return `RpcResp${kebabToPascalCase(rpcName, true)}${kebabToPascalCase(e.name, true)}V${e.v}`
 }
