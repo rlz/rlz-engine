@@ -106,6 +106,10 @@ export async function runServer({ production, domain, certDir, staticDir, secure
         return httpErrors.notFound()
     })
 
+    httpsServer.all('/rpc/*', async () => {
+        return httpErrors.notFound()
+    })
+
     addStaticEndpoints(httpsServer, staticDir)
     await httpsServer.listen({ port: securePort ?? 443, host: '::' })
 
