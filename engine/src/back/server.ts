@@ -26,6 +26,8 @@ export type InitServerFuncType = <S extends RawServerBase>(
 
 export interface RunServerParams {
     production: boolean
+    unsecurePort?: number
+    securePort?: number
     domain: string
     certDir: string
     staticDir: string
@@ -34,7 +36,7 @@ export interface RunServerParams {
 
 const L = logger('init')
 
-export async function runServer({ production, domain, certDir, staticDir, init }: RunServerParams): Promise<() => Promise<void>> {
+export async function runServer({ production, domain, certDir, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
     L.info({ production }, 'runServer')
 
     const httpServer = fastify({
@@ -60,14 +62,14 @@ export async function runServer({ production, domain, certDir, staticDir, init }
 
         addStaticEndpoints(httpServer, staticDir)
 
-        await httpServer.listen({ port: 8080 })
+        await httpServer.listen({ port: unsecurePort ?? 8080 })
         return async () => {
             await httpServer.close()
         }
     }
 
     httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
-    await httpServer.listen({ port: 80, host: '::' })
+    await httpServer.listen({ port: unsecurePort ?? 80, host: '::' })
 
     L.info('Get certificates')
 
@@ -105,7 +107,7 @@ export async function runServer({ production, domain, certDir, staticDir, init }
     })
 
     addStaticEndpoints(httpsServer, staticDir)
-    await httpsServer.listen({ port: 443, host: '::' })
+    await httpsServer.listen({ port: securePort ?? 443, host: '::' })
 
     L.info('runServer done')
     return async () => {
