@@ -6,7 +6,7 @@ await runServer({
     production: false,
     domain: 'localhost',
     certDir: './cert',
-    staticDir: './static',
+    staticDir: './dist',
     init: async (server) => {
         server.get(
             '/hello',

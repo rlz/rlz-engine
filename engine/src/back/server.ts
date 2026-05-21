@@ -3,6 +3,7 @@ import fastifyCors from '@fastify/cors'
 import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
+import { Ajv } from 'ajv'
 import formatsPlugin from 'ajv-formats'
 import fastify, { FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
 import { fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
@@ -41,7 +42,7 @@ export async function runServer({ production, domain, certDir, staticDir, secure
 
     const httpServer = fastify({
         loggerInstance: logger('http'),
-        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
+        ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 
     if (!production) {
@@ -85,7 +86,7 @@ export async function runServer({ production, domain, certDir, staticDir, secure
             key: certAndKey.pkey
         },
         loggerInstance: logger('https'),
-        ajv: { plugins: [formatsPlugin.default], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
+        ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 
     await httpsServer.register(fastifyAcmeSecurePlugin, {

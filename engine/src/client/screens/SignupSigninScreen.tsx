@@ -17,8 +17,8 @@ export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.El
     const tab = location.pathname.substring(1)
 
     return (
-        <Stack p={1} gap={1} maxWidth={'500px'} mx={'auto'} mt={10}>
-            <Typography variant={'h3'} textAlign={'center'}>{appName}</Typography>
+        <Stack sx={{ p: 1, gap: 1, maxWidth: '500px', mx: 'auto', mt: 10 }}>
+            <Typography variant={'h3'} sx={{ textAlign: 'center' }}>{appName}</Typography>
             <Tabs
                 value={tab}
                 variant={'fullWidth'}
@@ -67,7 +67,7 @@ function SignupForm() {
     }, [name, email, password, password2])
 
     return (
-        <Stack gap={2} mt={2}>
+        <Stack sx={{ gap: 2, mt: 2 }}>
             <TextField
                 label={'Name'}
                 value={name}
@@ -178,7 +178,7 @@ function SigninForm() {
     }, [name, password])
 
     return (
-        <Stack gap={2} mt={2}>
+        <Stack sx={{ gap: 2, mt: 2 }}>
             <TextField
                 label={'Name'}
                 value={name}
