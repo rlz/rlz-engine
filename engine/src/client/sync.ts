@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon'
 
 import { API_COMPARISON_OBJECT_SCHEMA_V0, ApiItemsResponseV0 } from '../shared/api/sync.js'
-import { toValid } from '../shared/utils/datetime.js'
+import { toValidDateTime } from '../shared/utils/datetime.js'
 
 export async function syncItems<T extends { id: string, lastModified: DateTime<true> }>({
     getRemoteLastModified,
@@ -20,7 +20,7 @@ export async function syncItems<T extends { id: string, lastModified: DateTime<t
 }): Promise<void> {
     const remoteItems = (await getRemoteLastModified()).items
     const remoteItemsMap = Object.fromEntries(
-        remoteItems.map(i => [i.id, toValid(DateTime.fromISO(i.lastModified, { zone: 'utc' }))])
+        remoteItems.map(i => [i.id, toValidDateTime(DateTime.fromISO(i.lastModified, { zone: 'utc' }))])
     )
 
     const itemsToGet: string[] = []
