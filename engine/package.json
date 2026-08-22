@@ -59,7 +59,7 @@
         "fastify": "^5.12.1",
         "fastify-acme": "^1.0.12",
         "fastify-plugin": "^6.0.0",
-        "immer": "^11.1.17",
+        "immer": "^11.1.18",
         "iterator-helpers-polyfill": "^3.0.1",
         "luxon": "^3.7.2",
         "mongodb": "^7.5.0",
