@@ -1,6 +1,6 @@
 {
     "name": "rlz-engine",
-    "version": "1.0.53",
+    "version": "1.0.54",
     "description": "Deps and tools for my style of development",
     "scripts": {
         "build": "tsc --sourceMap",
