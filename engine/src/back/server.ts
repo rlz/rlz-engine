@@ -27,6 +27,7 @@ export type InitServerFuncType = <S extends RawServerBase>(
 
 export interface RunServerParams {
     production: boolean
+    debug?: boolean
     unsecurePort?: number
     securePort?: number
     domain: string
@@ -35,13 +36,12 @@ export interface RunServerParams {
     init: InitServerFuncType
 }
 
-const L = logger('init')
-
-export async function runServer({ production, domain, certDir, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
+export async function runServer({ production, debug = false, domain, certDir, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
+    const L = logger('init', { debug })
     L.info({ production }, 'runServer')
 
     const httpServer = fastify({
-        loggerInstance: logger('http'),
+        loggerInstance: logger('http', { debug }),
         ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 
@@ -74,7 +74,7 @@ export async function runServer({ production, domain, certDir, staticDir, secure
 
     L.info('Get certificates')
 
-    const certAndKey = await getCertAndKey(certDir, domain)
+    const certAndKey = await getCertAndKey(certDir, domain, httpServer.log)
 
     L.info('Init secure server')
 
@@ -85,7 +85,7 @@ export async function runServer({ production, domain, certDir, staticDir, secure
             cert: certAndKey.cert,
             key: certAndKey.pkey
         },
-        loggerInstance: logger('https'),
+        loggerInstance: logger('https', { debug }),
         ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
     })
 

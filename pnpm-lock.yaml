@@ -63,8 +63,8 @@ importers:
         specifier: ^5.12.1
         version: 5.12.1
       fastify-acme:
-        specifier: ^1.0.11
-        version: 1.0.11
+        specifier: ^1.0.12
+        version: 1.0.12
       fastify-plugin:
         specifier: ^6.0.0
         version: 6.0.0
@@ -2759,8 +2759,8 @@ packages:
   fast-uri@4.1.2:
     resolution: {integrity: sha512-TyGmBcbDTZXcb2cj5MV89DrF42DKvb3y5DDUNh95iO+IMeAzMkVSxK1PZRrRIpc9yg8U2GhGdbofNa0LS/a4Bw==}
 
-  fastify-acme@1.0.11:
-    resolution: {integrity: sha512-BpAZdpfPKmWRAHZxJRxBoQOhIls90dODP3spUcN7hWmWl0V5AwtQoj0pEcURmhHQfEwbyCPQeR4ajSLcfmMPYA==}
+  fastify-acme@1.0.12:
+    resolution: {integrity: sha512-s+VDJM6UqCw5g5mz5/qAjzTWwRuCRJFSGqxbMsq5hdDpfz0seb2U/8EKjzqGqq+gakdfH0YelsppyKViXiu45w==}
     hasBin: true
 
   fastify-plugin@5.1.0:
@@ -7083,7 +7083,7 @@ snapshots:
 
   fast-uri@4.1.2: {}
 
-  fastify-acme@1.0.11:
+  fastify-acme@1.0.12:
     dependencies:
       '@fastify/sensible': 6.0.5
       acme-client: 5.4.0
