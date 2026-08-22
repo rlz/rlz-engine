@@ -1,6 +1,6 @@
 {
     "name": "rlz-engine",
-    "version": "1.0.52",
+    "version": "1.0.53",
     "description": "Deps and tools for my style of development",
     "scripts": {
         "build": "tsc --sourceMap",
@@ -57,7 +57,7 @@
         "embla-carousel-react": "^8.6.0",
         "embla-carousel-wheel-gestures": "^8.1.0",
         "fastify": "^5.12.1",
-        "fastify-acme": "^1.0.12",
+        "fastify-acme": "^1.0.14",
         "fastify-plugin": "^6.0.0",
         "immer": "^11.1.18",
         "iterator-helpers-polyfill": "^3.0.1",

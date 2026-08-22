@@ -4,4 +4,4 @@ allowBuilds:
   esbuild: set this to true or false
   sharp: set this to true or false
 minimumReleaseAgeExclude:
-  - fastify-acme@1.0.12
+  - fastify-acme@1.0.12 || 1.0.14

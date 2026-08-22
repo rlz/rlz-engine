@@ -6,7 +6,7 @@ import fastifyStatic from '@fastify/static'
 import { Ajv } from 'ajv'
 import formatsPlugin from 'ajv-formats'
 import fastify, { FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
-import { fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
+import { type AcmeProvider, fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
@@ -32,11 +32,13 @@ export interface RunServerParams {
     securePort?: number
     domain: string
     certDir: string
+    /** Certificate authority used for ACME issuance and renewal. Defaults to Let's Encrypt. */
+    acmeProvider?: AcmeProvider
     staticDir: string
     init: InitServerFuncType
 }
 
-export async function runServer({ production, debug = false, domain, certDir, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
+export async function runServer({ production, debug = false, domain, certDir, acmeProvider, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
     const L = logger('init', { debug })
     L.info({ production }, 'runServer')
 
@@ -74,7 +76,7 @@ export async function runServer({ production, debug = false, domain, certDir, st
 
     L.info('Get certificates')
 
-    const certAndKey = await getCertAndKey(certDir, domain, httpServer.log)
+    const certAndKey = await getCertAndKey(certDir, domain, httpServer.log, acmeProvider)
 
     L.info('Init secure server')
 
@@ -91,7 +93,8 @@ export async function runServer({ production, debug = false, domain, certDir, st
 
     await httpsServer.register(fastifyAcmeSecurePlugin, {
         certDir,
-        domain
+        domain,
+        provider: acmeProvider
     })
 
     await httpsServer.register(fastifyCors, {
