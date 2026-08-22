@@ -63,8 +63,8 @@ importers:
         specifier: ^5.12.1
         version: 5.12.1
       fastify-acme:
-        specifier: ^1.0.14
-        version: 1.0.14
+        specifier: ^1.0.17
+        version: 1.0.17
       fastify-plugin:
         specifier: ^6.0.0
         version: 6.0.0
@@ -2530,8 +2530,8 @@ packages:
     resolution: {integrity: sha512-s+VDJM6UqCw5g5mz5/qAjzTWwRuCRJFSGqxbMsq5hdDpfz0seb2U/8EKjzqGqq+gakdfH0YelsppyKViXiu45w==}
     hasBin: true
 
-  fastify-acme@1.0.14:
-    resolution: {integrity: sha512-ecdQ54azc8Hsd465FbbGhehQEVV5pJ/sEtvPA4nxZ+caPLH8L9ucJoui7sQ1try3AFHMCt9IByjiVuAEhq9uEw==}
+  fastify-acme@1.0.17:
+    resolution: {integrity: sha512-EciFdsRXOkCgI8nrvWY+15cNRRGaA9qudECezfhGX1EyKNGVKJeKPgxOWgrAa7xfM7BIxScUe8ypzXK9IEjSSg==}
     hasBin: true
 
   fastify-plugin@5.1.0:
@@ -6427,7 +6427,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  fastify-acme@1.0.14:
+  fastify-acme@1.0.17:
     dependencies:
       '@fastify/sensible': 6.0.5
       acme-client: 5.4.0
