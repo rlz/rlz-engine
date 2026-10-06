@@ -32,6 +32,42 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Operators should be able to check basic application health and diagnostics from the application itself, reducing the need for separate operational tooling. This is planned work, not a currently available feature.
 
+## Replace Pino with structured system and audit loggers
+
+**Decision:** Planned work will replace Pino with `SystemLogger` and `AuditLogger`. Log calls use structured JavaScript objects. `SystemLogger` will provide the interface needed by Fastify, use module `SYSTEM`, and forward all records to `AuditLogger`. Production SystemLogger output will be readable, one line per record, for stdout/journald. In development, AuditLogger will provide colored readable console output, so SystemLogger does not need a second console sink. Audit records contain time, level, module, message, and optional error details including stack trace; non-JSON-serializable structured values and sensitive information must not be logged.
+
+**Reason:** Pino's worker-based transports add operational and build complexity the project wants to avoid. Keeping records structured at the logger boundary supports both readable developer output and durable querying without requiring JSON-formatted console output.
+
+## Store and query audit logs in SQLite
+
+**Decision:** Planned production audit storage will use Node's built-in SQLite support in `logs.sqlite` in the application working directory. Retention age and a global maximum record count will be configured at initialization. A periodic cleanup (planned hourly) will remove records older than the retention age and, additionally, the oldest records beyond the configured maximum; cleanup may use a small margin to reduce repeated deletion work. Required indexes will be created before server loggers start. Audit storage failures must not stop SystemLogger. An administrative RPC will filter by module, level, and time range, order stably by time and record ID, and cap pages at 1000 records.
+
+**Reason:** A local database provides searchable operational history without adding an external service for the one-process-per-VM deployment model. Age and count limits bound disk usage; asynchronous best-effort audit persistence keeps logging failures from taking down application work.
+
+## Migrate all RPC authentication to Bearer tokens compatibly
+
+**Decision:** Planned authentication work will add standard `Authorization: Bearer <token>` support for all RPC endpoints and clients while keeping the existing `userId:password` authorization format working during migration. Administrative log RPC calls will use Bearer authentication with a secret whose cryptographic hash is stored in `./auth/admin-secret`; if the file is absent, administrative log RPC access is unavailable. Production application RPC routes are served over TLS; the unsecure production server is reserved for ACME HTTP-01 and redirects.
+
+**Reason:** Bearer is a standard, direct way to carry RPC credentials and administrative secrets in an authorization header. Temporarily accepting both formats allows existing clients to continue working while applications move to the new format. TLS protects credentials in transit, while storing only a hash avoids keeping the administrative secret in plaintext on disk.
+
+## Generate administrative secrets instead of allowing operator-selected values
+
+**Decision:** Planned administration tooling will provide only a command to generate and reset the admin secret, not set an operator-chosen value. It will generate a cryptographically random, keyboard-friendly secret, store only its password-hash representation in `./auth/admin-secret`, and print the plaintext once. Replacing the secret invalidates the previous value. The file will be written with restrictive permissions and atomically replaced.
+
+**Reason:** Generated secrets avoid weak or reused human-selected passwords while remaining practical to type. Printing once keeps the plaintext out of persistent application storage; atomic replacement and restrictive permissions reduce exposure and avoid partially written credentials.
+
+## Provide an embeddable React administration UI
+
+**Decision:** Planned work will provide a reusable React administration UI that applications can mount at `/.adm`. The UI will prompt for the generated admin secret, authenticate its administrative RPC requests with Bearer authorization, and keep the credential in memory only so a page reload requires re-entry. Applications will be able to register administration modules. Initial modules will include audit-log browsing through the audit RPC and certificate status showing issue time, expiration time, time until planned renewal, and overdue renewal state.
+
+**Reason:** A shared embeddable UI lets applications expose consistent operational tools without each project building its own administration surface. A module registration boundary allows application-specific administration features to be added without changing the shared shell. Keeping credentials in memory limits persistence in the browser, with the trade-off that operators re-enter the secret after reload.
+
+## Bundle reusable capabilities as opt-in module facets
+
+**Decision:** Modules may be authored in an application or provided by `rlz-engine`, using the same opt-in composition style. Planned modules expose independently selectable `rpc`, `admRpc`, `adm`, and `cli` facets. User RPC and administrative RPC are separate concepts in the RPC registration system: user RPC uses the normal user authentication policy and `/rpc/...` routes; `admRpc` uses the administrative Bearer secret and an administrative route under `/.adm`. The `adm` facet contributes UI sections and may rely on `admRpc`; the `cli` facet contributes commands to the common application CLI using `node app.js <plugin> <cmd> <args...>`, with the plugin name as command namespace. Applications compose selected facets rather than reimplementing their integration glue. Logging/audit and certificate administration are initial candidates.
+
+**Reason:** Keeping each capability's RPC, user interface, and command-line integration together makes library features easy to adopt while allowing applications to opt into only the parts they use. Independent facets avoid forcing a UI or command dependency on applications that only need an RPC capability.
+
 ## Improve testability as the library evolves
 
 **Decision:** As `rlz-engine` develops, improve its design and structure to make library behavior easier to test. Use Vitest as the test framework.
