@@ -12,8 +12,8 @@
         "strict": true,
         "forceConsistentCasingInFileNames": true,
         "noFallthroughCasesInSwitch": true,
-        "module": "node20",
-        "moduleResolution": "node16",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "resolveJsonModule": true,
         "isolatedModules": true,
         "declaration": true,
@@ -23,6 +23,7 @@
     },
     "exclude": [
         "*.js",
+        "tests",
         "dist"
     ]
 }

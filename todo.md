@@ -2,7 +2,6 @@
 
 Future work, kept separate from current behavior. Add only agreed or clearly actionable items and update the list as work is completed.
 
-- Add automated coverage for RPC contract validation and generated client consistency, sync timestamp comparisons, and MongoDB index reconciliation.
 - Revisit the Zod JSON Schema `allOf` override in `src/back/rpc/rpc.ts` when the linked Zod issue is resolved; remove the workaround if the generated schemas no longer need it.
 - Replace Pino and its worker build integration with structured `SystemLogger` and `AuditLogger`; preserve the Fastify logger interface, send production SystemLogger records to readable single-line stdout, and render development audit records in color.
 - Add production SQLite audit storage at `logs.sqlite` with configured retention age and global record limit, indexed queries by module/level/time, hourly cleanup with a small deletion margin, and audit failure isolation from SystemLogger.

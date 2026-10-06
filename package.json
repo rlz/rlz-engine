@@ -3,6 +3,7 @@
     "version": "1.0.54",
     "description": "Deps and tools for my style of development",
     "scripts": {
+        "test": "vitest run",
         "build": "tsc --sourceMap",
         "prepack": "rm -rf dist && tsc --sourceMap"
     },
@@ -36,7 +37,8 @@
         "eslint-plugin-simple-import-sort": "^14.0.0",
         "tsx": "^4.23.12",
         "typescript": "^6.0.3",
-        "typescript-eslint": "^8.67.0"
+        "typescript-eslint": "^8.67.0",
+        "vitest": "^5.0.3"
     },
     "dependencies": {
         "@emotion/react": "^11.14.0",
