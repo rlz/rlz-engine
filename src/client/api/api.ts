@@ -70,9 +70,13 @@ export interface AuthParam {
 }
 
 export async function apiCall<T extends ZodType>(
-    method: 'GET' | 'POST', version: string, path: string, auth: AuthParam | null,
+    method: 'GET' | 'POST',
+    version: string,
+    path: string,
+    auth: AuthParam | null,
     queryString: Record<string, string> | null,
-    request: object | null, validator: T
+    request: object | null,
+    validator: T
 ): Promise<z.infer<T>> {
     const headers: Record<string, string> = {}
 

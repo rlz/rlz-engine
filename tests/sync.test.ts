@@ -9,16 +9,18 @@ const date = (value: string) => toValidDateTime(DateTime.fromISO(value, { zone: 
 describe('syncItems', () => {
     it('pushes newer local items and fetches newer or unknown remote items', async () => {
         const pushRemote = vi.fn(async () => {})
-        const getRemote = vi.fn(async (ids: readonly string[]) => ids.map(id => ({ id, lastModified: date('2025-01-03T00:00:00Z') })))
+        const getRemote = vi.fn(async (ids: readonly string[]) => ids.map((id) => ({ id, lastModified: date('2025-01-03T00:00:00Z') })))
         const pushLocal = vi.fn()
 
         await syncItems({
-            getRemoteLastModified: async () => ({ items: [
-                { id: 'local-newer', lastModified: '2025-01-02T00:00:00.000Z' },
-                { id: 'local-older', lastModified: '2025-01-04T00:00:00.000Z' },
-                { id: 'remote-only', lastModified: '2025-01-05T00:00:00.000Z' },
-                { id: 'same', lastModified: '2025-01-01T00:00:00.000Z' }
-            ] }),
+            getRemoteLastModified: async () => ({
+                items: [
+                    { id: 'local-newer', lastModified: '2025-01-02T00:00:00.000Z' },
+                    { id: 'local-older', lastModified: '2025-01-04T00:00:00.000Z' },
+                    { id: 'remote-only', lastModified: '2025-01-05T00:00:00.000Z' },
+                    { id: 'same', lastModified: '2025-01-01T00:00:00.000Z' }
+                ]
+            }),
             localItems: [
                 { id: 'local-newer', lastModified: date('2025-01-03T00:00:00Z') },
                 { id: 'local-older', lastModified: date('2025-01-01T00:00:00Z') },

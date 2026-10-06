@@ -17,12 +17,7 @@ import { logger } from './logger.js'
 installIntoGlobal()
 
 export type InitServerFuncType = <S extends RawServerBase>(
-    server: FastifyInstance<
-        S,
-        RawRequestDefaultExpression<S>,
-        RawReplyDefaultExpression<S>,
-        Logger
-    >
+    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, Logger>
 ) => Promise<void>
 
 export interface RunServerParams {
@@ -38,13 +33,26 @@ export interface RunServerParams {
     init: InitServerFuncType
 }
 
-export async function runServer({ production, debug = false, domain, certDir, acmeProvider, staticDir, securePort, unsecurePort, init }: RunServerParams): Promise<() => Promise<void>> {
+export async function runServer({
+    production,
+    debug = false,
+    domain,
+    certDir,
+    acmeProvider,
+    staticDir,
+    securePort,
+    unsecurePort,
+    init
+}: RunServerParams): Promise<() => Promise<void>> {
     const L = logger('init', { debug })
     L.info({ production }, 'runServer')
 
     const httpServer = fastify({
         loggerInstance: logger('http', { debug }),
-        ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
+        ajv: {
+            plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
+            customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+        }
     })
 
     if (!production) {
@@ -88,7 +96,10 @@ export async function runServer({ production, debug = false, domain, certDir, ac
             key: certAndKey.pkey
         },
         loggerInstance: logger('https', { debug }),
-        ajv: { plugins: [formatsPlugin.default as (opts: unknown) => Ajv], customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } }
+        ajv: {
+            plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
+            customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+        }
     })
 
     await httpsServer.register(fastifyAcmeSecurePlugin, {
@@ -102,7 +113,9 @@ export async function runServer({ production, debug = false, domain, certDir, ac
     })
     await httpsServer.register(fastifyCompress)
     await httpsServer.register(fastifySensible)
-    await httpsServer.register(fastifyResponseValidation, { ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } })
+    await httpsServer.register(fastifyResponseValidation, {
+        ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+    })
 
     await init(httpsServer)
 
@@ -119,20 +132,12 @@ export async function runServer({ production, debug = false, domain, certDir, ac
 
     L.info('runServer done')
     return async () => {
-        await Promise.all([
-            httpServer.close(),
-            httpsServer.close()
-        ])
+        await Promise.all([httpServer.close(), httpsServer.close()])
     }
 }
 
 function addStaticEndpoints<S extends RawServerBase>(
-    server: FastifyInstance<
-        S,
-        RawRequestDefaultExpression<S>,
-        RawReplyDefaultExpression<S>,
-        Logger
-    >,
+    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, Logger>,
     staticPath: string
 ) {
     const absStaticPath = path.resolve(staticPath)
@@ -141,8 +146,7 @@ function addStaticEndpoints<S extends RawServerBase>(
     server.register((s) => {
         s.register(fastifyStatic, { root: absStaticPath })
         s.setNotFoundHandler(async (_req, resp) => {
-            await resp.type('text/html')
-                .send(createReadStream(absIndexPath))
+            await resp.type('text/html').send(createReadStream(absIndexPath))
         })
     })
 }

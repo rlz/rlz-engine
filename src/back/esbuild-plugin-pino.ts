@@ -34,14 +34,14 @@ export function esbuildPluginPino(options: PinoWorkersPluginOptions = {}): Plugi
                     return
                 }
 
-                await Promise.all(extraEntries.map(entry => esbuildBuild(makeBuildOptions(build.initialOptions, entry))))
+                await Promise.all(extraEntries.map((entry) => esbuildBuild(makeBuildOptions(build.initialOptions, entry))))
             })
         }
     }
 }
 
 function resolveExtraEntries(outdir: string, transports: string[]): ExtraEntry[] {
-    const transportEntries = Array.from(new Set(['pino/file', ...transports])).map(transport => ({
+    const transportEntries = Array.from(new Set(['pino/file', ...transports])).map((transport) => ({
         entryPoint: REQUIRE.resolve(transport),
         outfile: path.join(outdir, `${sanitizeTransportName(transport)}.js`),
         overrideKey: transport
@@ -92,16 +92,18 @@ function injectBundlerOverrides(initialOptions: BuildOptions, extraEntries: Extr
         existingBanner,
         'function pinoBundlerAbsolutePath(path) {',
         '    try {',
-        '        return require(\'path\').join((process.cwd() + require(\'path\').sep + \'dist\').replace(/\\\\/g, \'/\'), path)',
+        "        return require('path').join((process.cwd() + require('path').sep + 'dist').replace(/\\\\/g, '/'), path)",
         '    } catch {',
-        '        return new Function(\'p\', \'return new URL(p, import.meta.url).pathname\')(path)',
+        "        return new Function('p', 'return new URL(p, import.meta.url).pathname')(path)",
         '    }',
         '}',
         'globalThis.__bundlerPathsOverrides = {',
         '    ...(globalThis.__bundlerPathsOverrides || {}),',
         `    ${overrideLines.join(',\n    ')}`,
         '};'
-    ].filter(Boolean).join('\n')
+    ]
+        .filter(Boolean)
+        .join('\n')
 
     initialOptions.banner = {
         ...initialOptions.banner,

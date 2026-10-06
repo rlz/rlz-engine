@@ -18,7 +18,9 @@ export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.El
 
     return (
         <Stack sx={{ p: 1, gap: 1, maxWidth: '500px', mx: 'auto', mt: 10 }}>
-            <Typography variant={'h3'} sx={{ textAlign: 'center' }}>{appName}</Typography>
+            <Typography variant={'h3'} sx={{ textAlign: 'center' }}>
+                {appName}
+            </Typography>
             <Tabs
                 value={tab}
                 variant={'fullWidth'}
@@ -29,21 +31,15 @@ export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.El
                 <Tab value={'signin'} label={'Signin'} />
                 <Tab value={'signup'} label={'Signup'} />
             </Tabs>
-            {
-                tab === 'signup'
-                && <SignupForm />
-            }
-            {
-                tab === 'signin'
-                && <SigninForm />
-            }
+            {tab === 'signup' && <SignupForm />}
+            {tab === 'signin' && <SigninForm />}
         </Stack>
     )
 }
 
 function SignupForm() {
     const navigate = useNavigate()
-    const login = useAuthState(i => i.login)
+    const login = useAuthState((i) => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
     const [name, setName] = useState('')
     const [nameActivated, setNameActivated] = useState(false)
@@ -85,7 +81,7 @@ function SignupForm() {
                 value={email}
                 error={emailActivated && !isValidEmail(email)}
                 helperText={emailActivated ? (isValidEmail(email) ? 'ok' : 'Invalid e-mail address') : 'required'}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setEmailActivated(true)}
             />
             <TextField
@@ -94,7 +90,7 @@ function SignupForm() {
                 value={password}
                 error={passwordActivated && password === ''}
                 helperText={passwordActivated ? (password === '' ? 'Empty password' : 'ok') : 'required'}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordActivated(true)}
             />
             <TextField
@@ -103,7 +99,7 @@ function SignupForm() {
                 value={password2}
                 error={password2Activated && password2 !== password}
                 helperText={password2Activated ? (password2 !== password ? 'Do not match' : 'ok') : 'required'}
-                onChange={e => setPassword2(e.target.value)}
+                onChange={(e) => setPassword2(e.target.value)}
                 onFocus={() => setPassword2Activated(true)}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -115,13 +111,7 @@ function SignupForm() {
                 <Button
                     variant={'contained'}
                     fullWidth
-                    disabled={
-                        name === ''
-                        || !isValidEmail(email)
-                        || password === ''
-                        || password2 !== password
-                        || syncInProgress
-                    }
+                    disabled={name === '' || !isValidEmail(email) || password === '' || password2 !== password || syncInProgress}
                     onClick={doSignUp}
                 >
                     {'Signup'}
@@ -144,12 +134,7 @@ function SignupForm() {
 }
 
 async function signup(login: AuthState['login'], name: string, email: string, password: string, password2: string) {
-    if (
-        name === ''
-        || !isValidEmail(email)
-        || password === ''
-        || password2 !== password
-    ) {
+    if (name === '' || !isValidEmail(email) || password === '' || password2 !== password) {
         return
     }
 
@@ -159,7 +144,7 @@ async function signup(login: AuthState['login'], name: string, email: string, pa
 }
 
 function SigninForm() {
-    const login = useAuthState(i => i.login)
+    const login = useAuthState((i) => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
     const navigate = useNavigate()
     const [name, setName] = useState('')
@@ -179,17 +164,12 @@ function SigninForm() {
 
     return (
         <Stack sx={{ gap: 2, mt: 2 }}>
-            <TextField
-                label={'Name'}
-                value={name}
-                onChange={e => setName(e.target.value)}
-                autoFocus
-            />
+            <TextField label={'Name'} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             <TextField
                 label={'Password'}
                 type={'password'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                         doSignIn()
@@ -197,16 +177,7 @@ function SigninForm() {
                 }}
             />
             <Box sx={{ m: 1, position: 'relative' }}>
-                <Button
-                    variant={'contained'}
-                    fullWidth
-                    disabled={
-                        name === ''
-                        || password === ''
-                        || syncInProgress
-                    }
-                    onClick={doSignIn}
-                >
+                <Button variant={'contained'} fullWidth disabled={name === '' || password === '' || syncInProgress} onClick={doSignIn}>
                     {'Signin'}
                 </Button>
                 {syncInProgress && (

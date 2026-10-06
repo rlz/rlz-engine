@@ -28,7 +28,7 @@ export class MongoStorage {
     }
 
     async createIndexes<T extends Document>(collection: Collection<T>, indexes: StorageIndexDescription[]) {
-        this.logger.info({ indexes: indexes?.map(i => i.name) ?? null, collection: collection.collectionName }, 'Configured indexes')
+        this.logger.info({ indexes: indexes?.map((i) => i.name) ?? null, collection: collection.collectionName }, 'Configured indexes')
 
         const knownIndexes = await this.listIndexes(collection)
 
@@ -64,11 +64,13 @@ export class MongoStorage {
 
     private async listIndexes<T extends Document>(collection: Collection<T>): Promise<Set<string>> {
         const indexes: IndexDescription[] = await collection.listIndexes().toArray()
-        return new Set(indexes.map((i) => {
-            if (i.name === undefined) {
-                throw Error('Index with undefined name detected!')
-            }
-            return i.name
-        }))
+        return new Set(
+            indexes.map((i) => {
+                if (i.name === undefined) {
+                    throw Error('Index with undefined name detected!')
+                }
+                return i.name
+            })
+        )
     }
 }

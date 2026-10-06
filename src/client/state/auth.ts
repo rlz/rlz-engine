@@ -25,15 +25,13 @@ export interface AuthState {
 }
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
-const makeAuthParam = cacheLastResult(
-    function makeAuthParam(id: string | null, tempPassword: string | null): AuthParam | null {
-        if (id === null || tempPassword === null) {
-            return null
-        }
-
-        return { userId: id, tempPassword }
+const makeAuthParam = cacheLastResult(function makeAuthParam(id: string | null, tempPassword: string | null): AuthParam | null {
+    if (id === null || tempPassword === null) {
+        return null
     }
-)
+
+    return { userId: id, tempPassword }
+})
 
 // eslint-disable-next-line @typescript-eslint/naming-convention
 export const useAuthState = create<AuthState>()(

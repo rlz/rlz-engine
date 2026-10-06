@@ -5,7 +5,7 @@ import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures'
 import React, { type ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
 import { useResizeDetector } from 'react-resize-detector'
 
-export type ItemType = { value: string, label: string, fontStyle?: string }
+export type ItemType = { value: string; label: string; fontStyle?: string }
 export type ItemsType = readonly ItemType[]
 
 interface Props {
@@ -19,7 +19,8 @@ interface Props {
 }
 
 const A = styled('a')({
-    fontSize: '0', cursor: 'pointer'
+    fontSize: '0',
+    cursor: 'pointer'
 })
 
 export function ItemsSelect(props: Props): ReactElement {
@@ -34,9 +35,12 @@ export function ItemsSelect(props: Props): ReactElement {
 
     const [filter, setFilter] = useState<string | null>(null)
 
-    const onSelect = useCallback((api: Exclude<typeof carouselApi, undefined>) => {
-        setPage(api.selectedScrollSnap())
-    }, [pages])
+    const onSelect = useCallback(
+        (api: Exclude<typeof carouselApi, undefined>) => {
+            setPage(api.selectedScrollSnap())
+        },
+        [pages]
+    )
 
     useEffect(() => {
         setPages(height === undefined ? 1 : Math.ceil(height / pageHeight))
@@ -52,18 +56,19 @@ export function ItemsSelect(props: Props): ReactElement {
         }
     }, [carouselApi, onSelect])
 
-    const onSelectedChangeContainer = useMemo(() => { return { v: props.onSelectedChange } }, [])
+    const onSelectedChangeContainer = useMemo(() => {
+        return { v: props.onSelectedChange }
+    }, [])
     onSelectedChangeContainer.v = props.onSelectedChange
 
     const items = useMemo(() => {
-        const items = filter === null
-            ? props.items
-            : (() => {
-                    const re = new RegExp(filter, 'i')
-                    return props.items.filter(
-                        i => re.test(i.label)
-                    )
-                })()
+        const items =
+            filter === null
+                ? props.items
+                : (() => {
+                      const re = new RegExp(filter, 'i')
+                      return props.items.filter((i) => re.test(i.label))
+                  })()
 
         return items.map((i) => {
             const fontStyle = typeof i === 'string' ? undefined : i.fontStyle
@@ -75,7 +80,7 @@ export function ItemsSelect(props: Props): ReactElement {
                         <A
                             key={i.value}
                             onClick={() => {
-                                onSelectedChangeContainer.v(props.selected.filter(s => s !== i.value))
+                                onSelectedChangeContainer.v(props.selected.filter((s) => s !== i.value))
                             }}
                         >
                             {chip}
@@ -113,60 +118,67 @@ export function ItemsSelect(props: Props): ReactElement {
                     onChange={(ev) => {
                         setFilter(ev.target.value === '' ? null : ev.target.value)
                     }}
-                    endAdornment={(
+                    endAdornment={
                         <InputAdornment position={'end'}>
                             <IconButton
                                 disabled={filter === null}
-                                onClick={() => { setFilter(null) }}
+                                onClick={() => {
+                                    setFilter(null)
+                                }}
                                 edge={'end'}
                             >
                                 <ClearIcon />
                             </IconButton>
                         </InputAdornment>
-                    )}
+                    }
                 />
             </FormControl>
             <Box sx={{ overflow: 'hidden' }} ref={carouselRef}>
                 <Stack direction={'row'}>
                     <Box sx={{ height: pageHeight, overflow: 'hidden', flex: '0 0 100%' }}>
                         <Stack ref={ref} direction={'row'} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                            { items }
+                            {items}
                         </Stack>
                     </Box>
-                    {
-                        Array.from(Iterator.range(1, pages).map((p) => {
+                    {Array.from(
+                        Iterator.range(1, pages).map((p) => {
                             return (
                                 <Box key={p} sx={{ height: pageHeight, overflow: 'hidden', position: 'relative', flex: '0 0 100%' }}>
                                     <Box sx={{ position: 'absolute', top: -pageHeight * p }}>
                                         <Stack direction={'row'} sx={{ flexWrap: 'wrap', gap: 1 }}>
-                                            { items }
+                                            {items}
                                         </Stack>
                                     </Box>
                                 </Box>
                             )
-                        }))
-                    }
+                        })
+                    )}
                 </Stack>
             </Box>
             <Stack direction={'row'} sx={{ justifyContent: 'center', gap: 1, mt: 1, height: 10 }}>
-                {
-                    pages > 1
-                        ? Array.from(Iterator.range(pages).map((p) => {
-                                return (
-                                    <A key={p} onClick={() => { carouselApi?.scrollTo(p) }}>
-                                        <Box
-                                            sx={{
-                                                width: 10,
-                                                height: 10,
-                                                bgcolor: p === page ? 'secondary.main' : 'text.primary',
-                                                borderRadius: 10
-                                            }}
-                                        />
-                                    </A>
-                                )
-                            }))
-                        : null
-                }
+                {pages > 1
+                    ? Array.from(
+                          Iterator.range(pages).map((p) => {
+                              return (
+                                  <A
+                                      key={p}
+                                      onClick={() => {
+                                          carouselApi?.scrollTo(p)
+                                      }}
+                                  >
+                                      <Box
+                                          sx={{
+                                              width: 10,
+                                              height: 10,
+                                              bgcolor: p === page ? 'secondary.main' : 'text.primary',
+                                              borderRadius: 10
+                                          }}
+                                      />
+                                  </A>
+                              )
+                          })
+                      )
+                    : null}
             </Stack>
         </Box>
     )

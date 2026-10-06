@@ -62,7 +62,13 @@ export interface BearerAuthParam {
     bearerToken: string
 }
 
-export async function rpcCall<BodyT extends object, RespT extends object>(auth: AuthParam | BearerAuthParam | null, rpcName: string, callName: string, version: number, bodyObject: BodyT): Promise<RespT> {
+export async function rpcCall<BodyT extends object, RespT extends object>(
+    auth: AuthParam | BearerAuthParam | null,
+    rpcName: string,
+    callName: string,
+    version: number,
+    bodyObject: BodyT
+): Promise<RespT> {
     const headers: Record<string, string> = {}
 
     const body = await prepareBody(bodyObject)
@@ -75,9 +81,7 @@ export async function rpcCall<BodyT extends object, RespT extends object>(auth: 
     }
 
     if (auth !== null) {
-        headers['authorization'] = 'bearerToken' in auth
-            ? `Bearer ${auth.bearerToken}`
-            : `${auth.userId}:${auth.tempPassword}`
+        headers['authorization'] = 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `${auth.userId}:${auth.tempPassword}`
     }
 
     const u = url(rpcName, callName, version)

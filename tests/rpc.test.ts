@@ -57,21 +57,23 @@ describe('RPC contracts', () => {
     })
 
     it('validates request and response bodies against endpoint schemas', async () => {
-        const builder = rpc('example').add({
-            name: 'echo',
-            v: 2,
-            anonimous: true,
-            bodySchema: z.object({ value: z.string() }),
-            respSchema: z.object({ value: z.string() }),
-            action: ({ value }) => ({ value })
-        }).add({
-            name: 'bad-response',
-            v: 1,
-            anonimous: true,
-            bodySchema: z.object({}),
-            respSchema: z.object({ value: z.string() }),
-            action: () => ({ value: 42 } as unknown as { value: string })
-        })
+        const builder = rpc('example')
+            .add({
+                name: 'echo',
+                v: 2,
+                anonimous: true,
+                bodySchema: z.object({ value: z.string() }),
+                respSchema: z.object({ value: z.string() }),
+                action: ({ value }) => ({ value })
+            })
+            .add({
+                name: 'bad-response',
+                v: 1,
+                anonimous: true,
+                bodySchema: z.object({}),
+                respSchema: z.object({ value: z.string() }),
+                action: () => ({ value: 42 }) as unknown as { value: string }
+            })
         const app = fastify({ ajv: { customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } } })
         await app.register(sensible)
         await app.register(responseValidation)

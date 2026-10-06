@@ -12,9 +12,7 @@ export function logger(
     config?: LoggerConfig,
     optionsRecipe?: (draft: WritableDraft<LoggerOptions>) => WritableDraft<LoggerOptions>
 ): Logger {
-    const options = optionsRecipe === undefined
-        ? loggerOptions(name, config)
-        : produce(loggerOptions(name, config), optionsRecipe)
+    const options = optionsRecipe === undefined ? loggerOptions(name, config) : produce(loggerOptions(name, config), optionsRecipe)
     return pino(options)
 }
 

@@ -10,58 +10,54 @@ interface AuthEndpointsOpts {
     storage: AuthStorage
 }
 
-export const AUTH_API = fastifyPlugin(
-    async function authApi<T extends RawServerBase>(app: FastifyInstance<T>, { storage }: AuthEndpointsOpts) {
-        app.post(
-            '/api/v0/signup',
-            {
-                schema: {
-                    body: API_SIGNUP_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
-                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
-                }
-            },
-            async (req, _resp) => {
-                const body = API_SIGNUP_REQUEST_SCHEMA_V0.parse(req.body)
-                return await signup(storage, body.name, body.email, body.password)
+export const AUTH_API = fastifyPlugin(async function authApi<T extends RawServerBase>(
+    app: FastifyInstance<T>,
+    { storage }: AuthEndpointsOpts
+) {
+    app.post(
+        '/api/v0/signup',
+        {
+            schema: {
+                body: API_SIGNUP_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
+                response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
             }
-        )
+        },
+        async (req, _resp) => {
+            const body = API_SIGNUP_REQUEST_SCHEMA_V0.parse(req.body)
+            return await signup(storage, body.name, body.email, body.password)
+        }
+    )
 
-        app.post(
-            '/api/v0/signin',
-            {
-                schema: {
-                    body: API_SIGNIN_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
-                    response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
-                }
-            },
-            async (req, _resp) => {
-                const body = API_SIGNIN_REQUEST_SCHEMA_V0.parse(req.body)
-                const r = await signin(storage, body.name, body.password)
-                if (r === null) {
-                    return httpErrors.unauthorized()
-                }
-                return r
+    app.post(
+        '/api/v0/signin',
+        {
+            schema: {
+                body: API_SIGNIN_REQUEST_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }),
+                response: { 200: API_AUTH_RESPONSE_SCHEMA_V0.toJSONSchema({ target: 'draft-07' }) }
             }
-        )
-
-        app.post(
-            '/api/v0/logout',
-            {
-            },
-            async (req, resp) => {
-                await storage.auth(req.headers)
-
-                const authHeader = req.headers.authorization
-                if (authHeader === undefined) {
-                    throw httpErrors.forbidden()
-                }
-
-                const [userId, tempPassword] = authHeader.split(':')
-
-                await logout(storage, userId, tempPassword)
-
-                return resp.code(204).send()
+        },
+        async (req, _resp) => {
+            const body = API_SIGNIN_REQUEST_SCHEMA_V0.parse(req.body)
+            const r = await signin(storage, body.name, body.password)
+            if (r === null) {
+                return httpErrors.unauthorized()
             }
-        )
-    }
-)
+            return r
+        }
+    )
+
+    app.post('/api/v0/logout', {}, async (req, resp) => {
+        await storage.auth(req.headers)
+
+        const authHeader = req.headers.authorization
+        if (authHeader === undefined) {
+            throw httpErrors.forbidden()
+        }
+
+        const [userId, tempPassword] = authHeader.split(':')
+
+        await logout(storage, userId, tempPassword)
+
+        return resp.code(204).send()
+    })
+})

@@ -16,7 +16,11 @@ export function NotFound(): JSX.Element {
         >
             <Box sx={{ fontSize: 120 }}>{'404'}</Box>
             <Box>
-                <Link to={'/'}><Typography color={'warning.main'} sx={{ textDecoration: 'underline' }}>{'To main page'}</Typography></Link>
+                <Link to={'/'}>
+                    <Typography color={'warning.main'} sx={{ textDecoration: 'underline' }}>
+                        {'To main page'}
+                    </Typography>
+                </Link>
             </Box>
         </Stack>
     )

@@ -7,10 +7,7 @@ import tsEslint from 'typescript-eslint'
 export default defineConfig([
     globalIgnores(['dist']),
     {
-        files: [
-            './*.js',
-            'src/**.ts'
-        ]
+        files: ['./*.js', 'src/**.ts']
     },
     {
         languageOptions: {

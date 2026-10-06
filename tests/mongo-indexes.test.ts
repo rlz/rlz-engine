@@ -8,7 +8,7 @@ function collectionWith(indexNames: string[]) {
     const createIndexes = vi.fn(async () => [])
     const collection = {
         collectionName: 'items',
-        listIndexes: () => ({ toArray: async () => indexNames.map(name => ({ name })) }),
+        listIndexes: () => ({ toArray: async () => indexNames.map((name) => ({ name })) }),
         dropIndex,
         createIndexes
     } as unknown as Collection<Document>

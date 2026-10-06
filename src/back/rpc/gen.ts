@@ -14,30 +14,23 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
 
     const fileContent: string[] = []
 
-    fileContent.push(p(
-        F.createImportDeclaration(
-            undefined,
-            F.createImportClause(
-                false,
+    fileContent.push(
+        p(
+            F.createImportDeclaration(
                 undefined,
-                F.createNamedImports([
-                    F.createImportSpecifier(
-                        false,
-                        undefined,
-                        F.createIdentifier('AuthParam')
-                    ),
-                    F.createImportSpecifier(
-                        false,
-                        undefined,
-                        F.createIdentifier('rpcCall')
-                    )
-                ])
-            ),
-            F.createStringLiteral('rlz-engine/client/rpc.js'),
-            undefined
+                F.createImportClause(
+                    false,
+                    undefined,
+                    F.createNamedImports([
+                        F.createImportSpecifier(false, undefined, F.createIdentifier('AuthParam')),
+                        F.createImportSpecifier(false, undefined, F.createIdentifier('rpcCall'))
+                    ])
+                ),
+                F.createStringLiteral('rlz-engine/client/rpc.js'),
+                undefined
+            )
         )
-
-    ))
+    )
 
     for (const b of rpcBuilders) {
         for (const e of b.endpoints) {
@@ -54,89 +47,71 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
                     undefined,
                     e.anonimous
                         ? [
-                                F.createParameterDeclaration(
-                                    undefined,
-                                    undefined,
-                                    F.createIdentifier('body'),
-                                    undefined,
-                                    F.createTypeReferenceNode(
-                                        F.createIdentifier(createBodyTypeName(b.name, e)),
-                                        undefined
-                                    ),
-                                    undefined
-                                )
-                            ]
+                              F.createParameterDeclaration(
+                                  undefined,
+                                  undefined,
+                                  F.createIdentifier('body'),
+                                  undefined,
+                                  F.createTypeReferenceNode(F.createIdentifier(createBodyTypeName(b.name, e)), undefined),
+                                  undefined
+                              )
+                          ]
                         : [
-                                F.createParameterDeclaration(
-                                    undefined,
-                                    undefined,
-                                    F.createIdentifier('auth'),
-                                    undefined,
-                                    F.createTypeReferenceNode(
-                                        F.createIdentifier('AuthParam'),
-                                        undefined
-                                    ),
-                                    undefined
-                                ),
-                                F.createParameterDeclaration(
-                                    undefined,
-                                    undefined,
-                                    F.createIdentifier('body'),
-                                    undefined,
-                                    F.createTypeReferenceNode(
-                                        F.createIdentifier(createBodyTypeName(b.name, e)),
-                                        undefined
-                                    ),
-                                    undefined
-                                )
-                            ],
-                    F.createTypeReferenceNode(
-                        F.createIdentifier('Promise'),
-                        [F.createTypeReferenceNode(
-                            F.createIdentifier(createRespTypeName(b.name, e)),
-                            undefined
-                        )]
-                    ),
+                              F.createParameterDeclaration(
+                                  undefined,
+                                  undefined,
+                                  F.createIdentifier('auth'),
+                                  undefined,
+                                  F.createTypeReferenceNode(F.createIdentifier('AuthParam'), undefined),
+                                  undefined
+                              ),
+                              F.createParameterDeclaration(
+                                  undefined,
+                                  undefined,
+                                  F.createIdentifier('body'),
+                                  undefined,
+                                  F.createTypeReferenceNode(F.createIdentifier(createBodyTypeName(b.name, e)), undefined),
+                                  undefined
+                              )
+                          ],
+                    F.createTypeReferenceNode(F.createIdentifier('Promise'), [
+                        F.createTypeReferenceNode(F.createIdentifier(createRespTypeName(b.name, e)), undefined)
+                    ]),
                     F.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                     F.createBlock(
-                        [F.createReturnStatement(F.createAwaitExpression(F.createCallExpression(
-                            F.createIdentifier('rpcCall'),
-                            undefined,
-                            [
-                                e.anonimous ? F.createNull() : F.createIdentifier('auth'),
-                                F.createStringLiteral(b.name),
-                                F.createStringLiteral(e.name),
-                                F.createNumericLiteral(e.v),
-                                F.createIdentifier('body')
-                            ]
-                        )))],
+                        [
+                            F.createReturnStatement(
+                                F.createAwaitExpression(
+                                    F.createCallExpression(F.createIdentifier('rpcCall'), undefined, [
+                                        e.anonimous ? F.createNull() : F.createIdentifier('auth'),
+                                        F.createStringLiteral(b.name),
+                                        F.createStringLiteral(e.name),
+                                        F.createNumericLiteral(e.v),
+                                        F.createIdentifier('body')
+                                    ])
+                                )
+                            )
+                        ],
                         true
                     )
                 )
             )
         })
 
-        return F.createPropertyAssignment(
-            F.createIdentifier(kebabToPascalCase(b.name)),
-            F.createObjectLiteralExpression(
-                calls,
-                false
-            )
-        )
+        return F.createPropertyAssignment(F.createIdentifier(kebabToPascalCase(b.name)), F.createObjectLiteralExpression(calls, false))
     })
 
     const rpcClientNode = F.createVariableStatement(
         [F.createToken(ts.SyntaxKind.ExportKeyword)],
         F.createVariableDeclarationList(
-            [F.createVariableDeclaration(
-                F.createIdentifier('RPC_CLIENT'),
-                undefined,
-                undefined,
-                F.createObjectLiteralExpression(
-                    props,
-                    false
+            [
+                F.createVariableDeclaration(
+                    F.createIdentifier('RPC_CLIENT'),
+                    undefined,
+                    undefined,
+                    F.createObjectLiteralExpression(props, false)
                 )
-            )],
+            ],
             ts.NodeFlags.Const
         )
     )

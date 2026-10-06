@@ -1,9 +1,7 @@
 {
     "compilerOptions": {
         "target": "ES2023",
-        "lib": [
-            "esnext"
-        ],
+        "lib": ["esnext"],
         "allowJs": true,
         "downlevelIteration": true,
         "skipLibCheck": true,
@@ -19,8 +17,5 @@
         "declaration": true,
         "noEmit": true
     },
-    "exclude": [
-        "js",
-        "dist"
-    ]
+    "exclude": ["js", "dist"]
 }

@@ -22,9 +22,7 @@ export class AuthStorage {
     }
 
     private async init() {
-        await Promise.all([
-            'users', 'temp-passwords'
-        ].map(i => this.mongo.createCollection(i)))
+        await Promise.all(['users', 'temp-passwords'].map((i) => this.mongo.createCollection(i)))
 
         await this.createIndexes()
     }
@@ -75,39 +73,34 @@ export class AuthStorage {
         return await this.users.findOne({ _id: t.userId })
     }
 
-    private async createCollections() {
-    }
+    private async createCollections() {}
 
     private async createIndexes() {
-        await this.mongo.createIndexes(this.users,
-            [
-                {
-                    name: 'name_v0',
-                    key: {
-                        name: 1
-                    },
-                    unique: true
-                }
-            ]
-        )
-        await this.mongo.createIndexes(this.tempPasswords,
-            [
-                {
-                    name: 'userId_v0',
-                    key: {
-                        userId: 1
-                    }
+        await this.mongo.createIndexes(this.users, [
+            {
+                name: 'name_v0',
+                key: {
+                    name: 1
                 },
-                {
-                    name: 'ttl_v0',
-                    key: {
-                        passwordHash: 1
-                    },
-                    // Temp passwords also have expirity dates, make sure they are syncronized with this expirity index
-                    expireAfterSeconds: 60 * 60 * 24 * 7 // 7 days
+                unique: true
+            }
+        ])
+        await this.mongo.createIndexes(this.tempPasswords, [
+            {
+                name: 'userId_v0',
+                key: {
+                    userId: 1
                 }
-            ]
-        )
+            },
+            {
+                name: 'ttl_v0',
+                key: {
+                    passwordHash: 1
+                },
+                // Temp passwords also have expirity dates, make sure they are syncronized with this expirity index
+                expireAfterSeconds: 60 * 60 * 24 * 7 // 7 days
+            }
+        ])
     }
 
     get users(): Collection<StorageUser> {

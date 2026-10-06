@@ -12,17 +12,24 @@ interface RpcEndpointCommon<BodyT extends object, RespT extends object> {
     readonly respSchema: z.Schema<RespT>
 }
 
-interface RpcEndpointAnon<BodyT extends object = object, RespT extends object = object, OptsT = never> extends RpcEndpointCommon<BodyT, RespT> {
+interface RpcEndpointAnon<BodyT extends object = object, RespT extends object = object, OptsT = never> extends RpcEndpointCommon<
+    BodyT,
+    RespT
+> {
     readonly anonimous: true
 
     readonly action: (
         body: { [k in keyof BodyT]: BodyT[k] },
         opts: OptsT
-    ) => { [k in keyof RespT]: RespT[k] }
-        | Promise<{ [k in keyof RespT]: RespT[k] }>
+    ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
 }
 
-interface RpcEndpointAuth<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> extends RpcEndpointCommon<BodyT, RespT> {
+interface RpcEndpointAuth<
+    BodyT extends object = object,
+    RespT extends object = object,
+    OptsT = never,
+    UserT = never
+> extends RpcEndpointCommon<BodyT, RespT> {
     readonly anonimous?: false
 
     readonly auth: (userId: string, password: string, opts: OptsT) => UserT | Promise<UserT>
@@ -31,11 +38,11 @@ interface RpcEndpointAuth<BodyT extends object = object, RespT extends object = 
         user: UserT,
         body: { [k in keyof BodyT]: BodyT[k] },
         opts: OptsT
-    ) => { [k in keyof RespT]: RespT[k] }
-        | Promise<{ [k in keyof RespT]: RespT[k] }>
+    ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
 }
 
-export type RpcEndpoint<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> = RpcEndpointAnon<BodyT, RespT, OptsT> | RpcEndpointAuth<BodyT, RespT, OptsT, UserT>
+export type RpcEndpoint<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> =
+    RpcEndpointAnon<BodyT, RespT, OptsT> | RpcEndpointAuth<BodyT, RespT, OptsT, UserT>
 
 export interface RpcEndpointInfo {
     v: number
@@ -49,7 +56,10 @@ interface InnerRpcEndpoint<OptsT> extends RpcEndpointInfo {
     reg: <T extends RawServerBase>(app: FastifyInstance<T>, opts: OptsT) => void
 }
 
-function makeReg<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never>(pluginName: string, endpoint: RpcEndpoint<BodyT, RespT, OptsT, UserT>): InnerRpcEndpoint<OptsT> {
+function makeReg<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never>(
+    pluginName: string,
+    endpoint: RpcEndpoint<BodyT, RespT, OptsT, UserT>
+): InnerRpcEndpoint<OptsT> {
     return {
         v: endpoint.v,
         name: endpoint.name,
@@ -62,16 +72,15 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                 `/rpc/${pluginName}_${this.name}_v${this.v}`,
                 {
                     schema: {
-                        body: this.bodySchema.toJSONSchema(
-                            {
-                                target: 'draft-07',
-                                // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
-                                override(ctx) {
-                                    if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
-                                        delete ctx.jsonSchema.additionalProperties
-                                    }
+                        body: this.bodySchema.toJSONSchema({
+                            target: 'draft-07',
+                            // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
+                            override(ctx) {
+                                if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
+                                    delete ctx.jsonSchema.additionalProperties
                                 }
-                            }),
+                            }
+                        }),
                         response: {
                             200: this.respSchema.toJSONSchema({
                                 target: 'draft-07',
@@ -87,33 +96,31 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                 },
                 endpoint.anonimous === true
                     ? async (req, resp) => {
-                        const body = req.body as BodyT
-                        const respBody = await endpoint.action(body, opts)
-                        resp.send(respBody)
-                    }
+                          const body = req.body as BodyT
+                          const respBody = await endpoint.action(body, opts)
+                          resp.send(respBody)
+                      }
                     : async (req, resp) => {
-                        const authHeader = req.headers.authorization
-                        if (authHeader === undefined) {
-                            throw httpErrors.forbidden()
-                        }
-                        const bearerMatch = BEARER_PREFIX.exec(authHeader)
-                        // Do not reinterpret an unsupported authorization scheme as legacy credentials.
-                        if (bearerMatch === null && /^[A-Za-z][A-Za-z0-9+.-]*\s+/.test(authHeader)) {
-                            throw httpErrors.forbidden()
-                        }
-                        const credentials = authHeader
-                            .substring(bearerMatch?.[0].length ?? 0)
-                            .split(':')
-                        const [userId, password] = credentials
-                        if (userId === undefined || password === undefined || credentials.length !== 2) {
-                            throw httpErrors.forbidden()
-                        }
-                        const user = await endpoint.auth(userId, password, opts)
+                          const authHeader = req.headers.authorization
+                          if (authHeader === undefined) {
+                              throw httpErrors.forbidden()
+                          }
+                          const bearerMatch = BEARER_PREFIX.exec(authHeader)
+                          // Do not reinterpret an unsupported authorization scheme as legacy credentials.
+                          if (bearerMatch === null && /^[A-Za-z][A-Za-z0-9+.-]*\s+/.test(authHeader)) {
+                              throw httpErrors.forbidden()
+                          }
+                          const credentials = authHeader.substring(bearerMatch?.[0].length ?? 0).split(':')
+                          const [userId, password] = credentials
+                          if (userId === undefined || password === undefined || credentials.length !== 2) {
+                              throw httpErrors.forbidden()
+                          }
+                          const user = await endpoint.auth(userId, password, opts)
 
-                        const body = req.body as BodyT
-                        const respBody = await endpoint.action(user, body, opts)
-                        await resp.send(respBody)
-                    }
+                          const body = req.body as BodyT
+                          const respBody = await endpoint.action(user, body, opts)
+                          await resp.send(respBody)
+                      }
             )
         }
     }
@@ -135,13 +142,11 @@ export class RpcPluginBuilder<OptsT extends FastifyPluginOptions = never> {
     makeFastifyPlugin() {
         const endpoints = this.endpoints
 
-        return fastifyPlugin(
-            function makeRpcPlugin<T extends RawServerBase>(app: FastifyInstance<T>, opts: OptsT) {
-                for (const e of endpoints) {
-                    e.reg(app, opts)
-                }
+        return fastifyPlugin(function makeRpcPlugin<T extends RawServerBase>(app: FastifyInstance<T>, opts: OptsT) {
+            for (const e of endpoints) {
+                e.reg(app, opts)
             }
-        )
+        })
     }
 }
 
