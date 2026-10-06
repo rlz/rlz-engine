@@ -1,27 +1,26 @@
 # Architecture
 
-This note describes the current structure of the `engine` package. The sibling `sample-project` is an example application and build-time consumer; it is not part of the published engine package.
+This note describes the current structure of the `rlz-engine` package. Its package manifest and TypeScript sources live at the repository root; the former `sample-project` demo has been removed.
 
 ## Package layout
 
-- `engine/src/back` contains Fastify server setup, RPC registration, authentication, and MongoDB storage helpers.
-- `engine/src/client` contains browser-side RPC transport, generated API usage, synchronization logic, and client state.
-- `engine/src/shared` contains schemas and types used across the client/server boundary, plus shared utilities.
-- `sample-project` demonstrates a backend and frontend, and generates a typed RPC client from the server's RPC definitions.
+- `src/back` contains Fastify server setup, RPC registration, authentication, and MongoDB storage helpers.
+- `src/client` contains browser-side RPC transport, generated API usage, synchronization logic, and client state.
+- `src/shared` contains schemas and types used across the client/server boundary, plus shared utilities.
 
-The package exports compiled `back`, `client`, and `shared` modules from `engine/dist` according to `engine/package.json`.
+The package exports compiled `back`, `client`, and `shared` modules from `dist` according to the root `package.json`.
 
 ## RPC contract and code generation
 
-RPC endpoints are declared with `RpcPluginBuilder` in `engine/src/back/rpc/rpc.ts`. Each endpoint carries a name, integer version, Zod body and response schemas, and an action. Registered routes use `/rpc/<plugin>_<endpoint>_v<version>`; authenticated endpoints call their auth function before their action.
+RPC endpoints are declared with `RpcPluginBuilder` in `src/back/rpc/rpc.ts`. Each endpoint carries a name, integer version, Zod body and response schemas, and an action. Registered routes use `/rpc/<plugin>_<endpoint>_v<version>`; authenticated endpoints call their auth function before their action.
 
-`engine/src/back/rpc/gen.ts` turns registered endpoint schemas into TypeScript body/response types and a client object. The sample project's generator imports the backend RPC definitions and writes the generated API consumed by the frontend. Keep endpoint versions, shared schemas, and generated client expectations aligned when changing a contract.
+`src/back/rpc/gen.ts` turns registered endpoint schemas into TypeScript body/response types and a client object. Consumers can generate a typed client from backend RPC definitions. Keep endpoint versions, shared schemas, and generated client expectations aligned when changing a contract.
 
 ## Authentication and client transport
 
 The browser RPC helper serializes requests as JSON, compresses bodies larger than 16 KiB with gzip, and adds an authorization header for authenticated calls. It maps common HTTP statuses to dedicated error classes. The backend RPC registration parses the authorization header into user ID and password values, delegates validation to the endpoint's auth callback, then invokes the action.
 
-The auth endpoint implementations and persistence live under `engine/src/back/auth`; browser login state lives in `engine/src/client/state/auth.ts` and is persisted by Zustand.
+The auth endpoint implementations and persistence live under `src/back/auth`; browser login state lives in `src/client/state/auth.ts` and is persisted by Zustand.
 
 ## Data synchronization
 

@@ -38,9 +38,9 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** A single runtime schema can validate data at the network boundary and serve as the source for generated TypeScript client types. Endpoint versions in route names allow contracts to evolve explicitly.
 
-## Generate the client API from backend endpoints
+## Provide client API generation from backend endpoints
 
-**Decision:** The sample project generates its typed RPC client from the backend endpoint registrations and their schemas.
+**Decision:** The engine provides a generator that derives typed RPC client methods from backend endpoint registrations and their schemas. A demo consumer was removed from this repository; applications can use the generator in their own build process.
 
 **Reason:** This keeps client method names, versions, and data types derived from the server contract instead of maintaining a parallel handwritten definition.
 
