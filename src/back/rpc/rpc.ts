@@ -3,6 +3,8 @@ import { FastifyInstance, FastifyPluginOptions, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import z from 'zod'
 
+const BEARER_PREFIX = /^Bearer\s+/i
+
 interface RpcEndpointCommon<BodyT extends object, RespT extends object> {
     readonly v: number
     readonly name: string
@@ -94,7 +96,14 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                         if (authHeader === undefined) {
                             throw httpErrors.forbidden()
                         }
-                        const [userId, password] = authHeader.split(':')
+                        const bearerMatch = BEARER_PREFIX.exec(authHeader)
+                        const credentials = authHeader
+                            .substring(bearerMatch?.[0].length ?? 0)
+                            .split(':')
+                        const [userId, password] = credentials
+                        if (userId === undefined || password === undefined || credentials.length !== 2) {
+                            throw httpErrors.forbidden()
+                        }
                         const user = await endpoint.auth(userId, password, opts)
 
                         const body = req.body as BodyT

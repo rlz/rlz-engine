@@ -46,9 +46,9 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 ## Migrate all RPC authentication to Bearer tokens compatibly
 
-**Decision:** Planned authentication work will add standard `Authorization: Bearer <token>` support for all RPC endpoints and clients while keeping the existing `userId:password` authorization format working during migration. Administrative log RPC calls will use Bearer authentication with a secret whose cryptographic hash is stored in `./auth/admin-secret`; if the file is absent, administrative log RPC access is unavailable. Production application RPC routes are served over TLS; the unsecure production server is reserved for ACME HTTP-01 and redirects.
+**Decision:** All RPC endpoints and the browser RPC helper accept `Authorization: Bearer <userId:password>` as well as the legacy `Authorization: userId:password` format. The Bearer scheme wraps the current credential pair so existing endpoint auth callbacks remain compatible; an opaque token contract would require an explicit token validation API. Administrative RPC calls are planned to use Bearer authentication with a secret whose cryptographic hash is stored in `./auth/admin-secret`; if the file is absent, administrative RPC access will be unavailable. Production application RPC routes are served over TLS; the unsecure production server is reserved for ACME HTTP-01 and redirects.
 
-**Reason:** Bearer is a standard, direct way to carry RPC credentials and administrative secrets in an authorization header. Temporarily accepting both formats allows existing clients to continue working while applications move to the new format. TLS protects credentials in transit, while storing only a hash avoids keeping the administrative secret in plaintext on disk.
+**Reason:** Bearer is a standard authorization scheme and can be adopted without changing the current credential-validation callback. Temporarily accepting both header formats allows existing clients to continue working. The trade-off is that the Bearer payload still has the legacy credential structure; a future opaque-token design needs a separate validation contract. TLS protects credentials in transit, while storing only a hash avoids keeping the administrative secret in plaintext on disk.
 
 ## Generate administrative secrets instead of allowing operator-selected values
 
