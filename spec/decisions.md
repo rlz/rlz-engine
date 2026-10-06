@@ -26,6 +26,12 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Operators should be able to check basic application health and diagnostics from the application itself, reducing the need for separate operational tooling. This is planned work, not a currently available feature.
 
+## Improve testability as the library evolves
+
+**Decision:** As `rlz-engine` develops, improve its design and structure to make library behavior easier to test. Use Vitest as the test framework.
+
+**Reason:** Testing should be a practical part of maintaining and extending the library, helping catch regressions while keeping future changes manageable. This records a development direction and tooling choice; it does not claim that a test suite or Vitest setup is already in place.
+
 ## Define RPC contracts with Zod
 
 **Decision:** RPC endpoint body and response schemas are Zod schemas, and routes validate both request and response data.
