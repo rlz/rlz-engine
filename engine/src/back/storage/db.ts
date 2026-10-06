@@ -36,6 +36,8 @@ export class MongoStorage {
 
         knownIndexes.delete('_id_')
 
+        // The configured list is the desired state: stale application indexes are removed,
+        // then missing indexes are created below.
         const indexesToCreate: StorageIndexDescription[] = []
 
         for (const index of indexes) {

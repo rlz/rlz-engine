@@ -54,6 +54,8 @@ export async function syncItems<T extends { id: string, lastModified: DateTime<t
         }
     }
 
+    // Push local edits before applying fetched remote versions so the two directions
+    // remain explicit and the caller can persist remote results after uploads finish.
     if (itemsToPush.length > 0) {
         await pushRemote(itemsToPush)
     }
