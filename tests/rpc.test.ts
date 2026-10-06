@@ -1,11 +1,15 @@
 import fastify from 'fastify'
 import sensible from '@fastify/sensible'
 import responseValidation from '@fastify/response-validation'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import z from 'zod'
 
 import { generateClient } from '../src/back/rpc/gen.js'
-import { rpc } from '../src/back/rpc/rpc.js'
+import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
+import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
     it('accepts Bearer and legacy credentials but rejects unsupported authorization schemes', async () => {
@@ -109,5 +113,49 @@ describe('RPC contracts', () => {
         expect(generated).toContain('"example"')
         expect(generated).toContain('"echo"')
         expect(generated).toContain('2')
+    })
+
+    it('protects administrative RPC routes with the admin Bearer secret', async () => {
+        const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-adm-rpc-'))
+        const secret = 'a-valid-administrative-secret'
+        await writeAdminSecretHash(join(workingDirectory, 'auth', 'admin-secret'), secret)
+
+        const builder = admRpc('audit').add({
+            name: 'status',
+            v: 1,
+            bodySchema: z.object({}),
+            respSchema: z.object({ available: z.boolean() }),
+            action: () => ({ available: true })
+        })
+        const app = fastify()
+        await app.register(sensible)
+        await app.register(responseValidation)
+        await app.register(builder.makeFastifyPlugin(), { workingDirectory })
+        await app.ready()
+
+        try {
+            const missing = await app.inject({ method: 'POST', url: '/.adm/rpc/audit_status_v1', payload: {} })
+            expect(missing.statusCode).toBe(403)
+
+            const legacy = await app.inject({
+                method: 'POST',
+                url: '/.adm/rpc/audit_status_v1',
+                headers: { authorization: `${secret}:anything` },
+                payload: {}
+            })
+            expect(legacy.statusCode).toBe(403)
+
+            const valid = await app.inject({
+                method: 'POST',
+                url: '/.adm/rpc/audit_status_v1',
+                headers: { authorization: `Bearer ${secret}` },
+                payload: {}
+            })
+            expect(valid.statusCode).toBe(200)
+            expect(valid.json()).toEqual({ available: true })
+        } finally {
+            await app.close()
+            await rm(workingDirectory, { recursive: true, force: true })
+        }
     })
 })

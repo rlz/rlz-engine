@@ -2,6 +2,7 @@ import { httpErrors } from '@fastify/sensible'
 import { FastifyInstance, FastifyPluginOptions, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import z from 'zod'
+import { verifyAdminSecret } from '../auth/admin-secret.js'
 
 const BEARER_PREFIX = /^Bearer\s+/i
 
@@ -75,21 +76,13 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                         body: this.bodySchema.toJSONSchema({
                             target: 'draft-07',
                             // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
-                            override(ctx) {
-                                if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
-                                    delete ctx.jsonSchema.additionalProperties
-                                }
-                            }
+                            override: removeAllOfAdditionalProperties
                         }),
                         response: {
                             200: this.respSchema.toJSONSchema({
                                 target: 'draft-07',
                                 // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
-                                override(ctx) {
-                                    if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
-                                        delete ctx.jsonSchema.additionalProperties
-                                    }
-                                }
+                                override: removeAllOfAdditionalProperties
                             })
                         }
                     }
@@ -152,4 +145,83 @@ export class RpcPluginBuilder<OptsT extends FastifyPluginOptions = never> {
 
 export function rpc<OptsT extends FastifyPluginOptions>(name: string) {
     return new RpcPluginBuilder<OptsT>(name)
+}
+
+export interface AdmRpcPluginOptions extends FastifyPluginOptions {
+    workingDirectory?: string
+}
+
+export interface AdmRpcEndpoint<BodyT extends object = object, RespT extends object = object, OptsT = never> {
+    readonly v: number
+    readonly name: string
+    readonly bodySchema: z.Schema<BodyT>
+    readonly respSchema: z.Schema<RespT>
+    readonly action: (
+        body: { [k in keyof BodyT]: BodyT[k] },
+        opts: OptsT
+    ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
+}
+
+export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions> {
+    readonly name: string
+    readonly endpoints: AdmRpcEndpoint<object, object, OptsT>[] = []
+
+    constructor(name: string) {
+        this.name = name
+    }
+
+    add<BodyT extends object, RespT extends object>(endpoint: AdmRpcEndpoint<BodyT, RespT, OptsT>) {
+        this.endpoints.push(endpoint as AdmRpcEndpoint<object, object, OptsT>)
+        return this
+    }
+
+    makeFastifyPlugin() {
+        const endpoints = this.endpoints
+        const pluginName = this.name
+
+        return fastifyPlugin(function makeAdmRpcPlugin<T extends RawServerBase>(app: FastifyInstance<T>, opts: OptsT) {
+            for (const endpoint of endpoints) {
+                app.post(
+                    `/.adm/rpc/${pluginName}_${endpoint.name}_v${endpoint.v}`,
+                    {
+                        schema: {
+                            body: endpoint.bodySchema.toJSONSchema({
+                                target: 'draft-07',
+                                override: removeAllOfAdditionalProperties
+                            }),
+                            response: {
+                                200: endpoint.respSchema.toJSONSchema({
+                                    target: 'draft-07',
+                                    override: removeAllOfAdditionalProperties
+                                })
+                            }
+                        }
+                    },
+                    async (req, resp) => {
+                        const authHeader = req.headers.authorization
+                        const match = authHeader === undefined ? null : /^Bearer\s+(.+)$/i.exec(authHeader)
+                        if (match === null || !(await verifyAdminSecret(match[1], opts.workingDirectory))) {
+                            throw httpErrors.forbidden()
+                        }
+
+                        const response = await endpoint.action(req.body as object, opts)
+                        await resp.send(response)
+                    }
+                )
+            }
+        })
+    }
+}
+
+export function admRpc<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions>(name: string) {
+    return new AdmRpcPluginBuilder<OptsT>(name)
+}
+
+function removeAllOfAdditionalProperties(ctx: {
+    path: (string | number)[]
+    jsonSchema: { type?: unknown; additionalProperties?: unknown }
+}) {
+    if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
+        delete ctx.jsonSchema.additionalProperties
+    }
 }
