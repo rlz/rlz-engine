@@ -56,7 +56,7 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Generated secrets avoid weak or reused human-selected passwords while remaining practical to type. Printing once keeps the plaintext out of persistent application storage; atomic replacement and restrictive permissions reduce exposure and avoid partially written credentials.
 
-**Implementation status:** `npm run admin-secret` generates a 32-character secret from an alphabet that omits visually ambiguous characters. It stores a salted scrypt record at `./auth/admin-secret` using an exclusive temporary file, file sync, and atomic rename; the resulting file has mode `0600`. The plaintext is printed after the replacement succeeds. This record format is groundwork for the planned administrative RPC verifier, which must use the same scrypt parameters and encoding.
+**Implementation status:** `npm run admin-secret` generates a 32-character secret from an alphabet that omits visually ambiguous characters. It stores a salted scrypt record at `./auth/admin-secret` using an exclusive temporary file, file sync, and atomic rename; the resulting file has mode `0600`. The plaintext is printed after the replacement succeeds. `verifyAdminSecret` loads and validates the record once per process and absolute path, then compares each derived hash in constant time. Missing and malformed files deny verification. The CLI writes the secret from a separate process, so a running server continues using its cached record until restart. Administrative RPC routes do not yet use this verifier.
 
 ## Provide an embeddable React administration UI
 

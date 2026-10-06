@@ -1,10 +1,14 @@
-import { randomBytes, randomInt, scrypt as scryptCallback } from 'node:crypto'
-import { mkdir, open, rename, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SECRET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
 const HASH_LENGTH = 64
+const SCRYPT_N = 16384
+const SCRYPT_R = 8
+const SCRYPT_P = 1
+const adminSecretRecords = new Map<string, Promise<{ salt: Buffer; hash: Buffer } | null>>()
 
 export async function generateAdminSecret(): Promise<string> {
     return Array.from({ length: 32 }, () => SECRET_ALPHABET[randomInt(SECRET_ALPHABET.length)]).join('')
@@ -16,10 +20,47 @@ export async function resetAdminSecret(workingDirectory = process.cwd()): Promis
     return secret
 }
 
-export async function writeAdminSecretHash(path: string, secret: string): Promise<void> {
-    const salt = randomBytes(16)
-    const hash = await new Promise<Buffer>((resolve, reject) => {
-        scryptCallback(secret, salt, HASH_LENGTH, { N: 16384, r: 8, p: 1 }, (error, derivedKey) => {
+export async function verifyAdminSecret(secret: string, workingDirectory = process.cwd()): Promise<boolean> {
+    const path = resolve(workingDirectory, 'auth', 'admin-secret')
+    let recordPromise = adminSecretRecords.get(path)
+    if (recordPromise === undefined) {
+        recordPromise = readAdminSecretRecord(path)
+        adminSecretRecords.set(path, recordPromise)
+    }
+
+    const record = await recordPromise
+    if (record === null) {
+        return false
+    }
+
+    const actualHash = await deriveSecretHash(secret, record.salt)
+    return timingSafeEqual(actualHash, record.hash)
+}
+
+async function readAdminSecretRecord(path: string): Promise<{ salt: Buffer; hash: Buffer } | null> {
+    let contents: string
+    try {
+        contents = await readFile(path, 'utf8')
+    } catch {
+        return null
+    }
+
+    const match = /^scrypt\$(\d+)\$(\d+)\$(\d+)\$([A-Za-z0-9+/]+={0,2})\$([A-Za-z0-9+/]+={0,2})\n?$/.exec(contents)
+    if (match === null || match[1] !== String(SCRYPT_N) || match[2] !== String(SCRYPT_R) || match[3] !== String(SCRYPT_P)) {
+        return null
+    }
+
+    const salt = Buffer.from(match[4], 'base64')
+    const hash = Buffer.from(match[5], 'base64')
+    if (salt.length !== 16 || hash.length !== HASH_LENGTH) {
+        return null
+    }
+    return { salt, hash }
+}
+
+function deriveSecretHash(secret: string, salt: Buffer): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        scryptCallback(secret, salt, HASH_LENGTH, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P }, (error, derivedKey) => {
             if (error !== null) {
                 reject(error)
             } else {
@@ -27,7 +68,12 @@ export async function writeAdminSecretHash(path: string, secret: string): Promis
             }
         })
     })
-    const record = `scrypt$16384$8$1$${salt.toString('base64')}$${hash.toString('base64')}\n`
+}
+
+export async function writeAdminSecretHash(path: string, secret: string): Promise<void> {
+    const salt = randomBytes(16)
+    const hash = await deriveSecretHash(secret, salt)
+    const record = `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt.toString('base64')}$${hash.toString('base64')}\n`
     const directory = dirname(path)
     const temporaryPath = join(directory, `.admin-secret-${process.pid}-${randomBytes(8).toString('hex')}.tmp`)
 
