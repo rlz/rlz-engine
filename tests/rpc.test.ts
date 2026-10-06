@@ -8,6 +8,54 @@ import { generateClient } from '../src/back/rpc/gen.js'
 import { rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
+    it('accepts Bearer and legacy credentials but rejects unsupported authorization schemes', async () => {
+        const authenticatedUsers: string[] = []
+        const builder = rpc('example').add({
+            name: 'private',
+            v: 1,
+            bodySchema: z.object({}),
+            respSchema: z.object({ userId: z.string() }),
+            auth: (userId) => {
+                authenticatedUsers.push(userId)
+                return userId
+            },
+            action: (userId) => ({ userId })
+        })
+        const app = fastify()
+        await app.register(sensible)
+        await app.register(responseValidation)
+        await app.register(builder.makeFastifyPlugin())
+        await app.ready()
+
+        const legacy = await app.inject({
+            method: 'POST',
+            url: '/rpc/example_private_v1',
+            headers: { authorization: 'user-1:password' },
+            payload: {}
+        })
+        expect(legacy.statusCode).toBe(200)
+        expect(legacy.json()).toEqual({ userId: 'user-1' })
+
+        const bearer = await app.inject({
+            method: 'POST',
+            url: '/rpc/example_private_v1',
+            headers: { authorization: 'Bearer user-2:password' },
+            payload: {}
+        })
+        expect(bearer.statusCode).toBe(200)
+        expect(bearer.json()).toEqual({ userId: 'user-2' })
+
+        const unsupported = await app.inject({
+            method: 'POST',
+            url: '/rpc/example_private_v1',
+            headers: { authorization: 'Basic user-3:password' },
+            payload: {}
+        })
+        expect(unsupported.statusCode).toBe(403)
+        expect(authenticatedUsers).toEqual(['user-1', 'user-2'])
+        await app.close()
+    })
+
     it('validates request and response bodies against endpoint schemas', async () => {
         const builder = rpc('example').add({
             name: 'echo',

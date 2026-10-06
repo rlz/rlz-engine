@@ -97,6 +97,10 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                             throw httpErrors.forbidden()
                         }
                         const bearerMatch = BEARER_PREFIX.exec(authHeader)
+                        // Do not reinterpret an unsupported authorization scheme as legacy credentials.
+                        if (bearerMatch === null && /^[A-Za-z][A-Za-z0-9+.-]*\s+/.test(authHeader)) {
+                            throw httpErrors.forbidden()
+                        }
                         const credentials = authHeader
                             .substring(bearerMatch?.[0].length ?? 0)
                             .split(':')
