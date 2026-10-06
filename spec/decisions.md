@@ -8,6 +8,12 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Pet projects benefit more from predictable defaults and less operational overhead than from a framework that can accommodate every deployment shape.
 
+## Use npm for package management
+
+**Decision:** Use npm with the root `package-lock.json` to install and lock dependencies. The repository is a single package and does not need a pnpm workspace configuration.
+
+**Reason:** Using npm avoids requiring a separate package manager while retaining reproducible installs through npm's lockfile. The trade-off is that dependency resolution and installation layout follow npm semantics.
+
 ## Deploy one application per virtual machine
 
 **Decision:** Applications using `rlz-engine` are deployed to network-accessible virtual machines, with one application per VM. The deployment model does not require Docker.
