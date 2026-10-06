@@ -2,6 +2,30 @@
 
 These are decisions evidenced by the current implementation. Add or revise entries when behavior changes; include context and trade-offs so future maintainers can evaluate the choice.
 
+## Focus rlz-engine on low-overhead pet projects
+
+**Decision:** `rlz-engine` is a set of supporting tools for pet projects. It should solve as many recurring tasks as possible in a consistent way while avoiding broad, universal abstractions and keeping administrative work low.
+
+**Reason:** Pet projects benefit more from predictable defaults and less operational overhead than from a framework that can accommodate every deployment shape.
+
+## Deploy one application per virtual machine
+
+**Decision:** Applications using `rlz-engine` are deployed to network-accessible virtual machines, with one application per VM. The deployment model does not require Docker.
+
+**Reason:** A dedicated VM per application gives a simple deployment and isolation model without adding container management to the project's administrative workload.
+
+## Manage production TLS certificates in rlz-engine
+
+**Decision:** `rlz-engine` takes responsibility for production TLS certificate management for applications exposed on the network.
+
+**Reason:** Centralizing certificate issuance and renewal reduces per-application administrative work. The current server lifecycle already provisions and renews certificates using ACME HTTP-01.
+
+## Plan an in-application administration interface
+
+**Decision:** The project plans to provide an administration interface within the application, including a way to inspect application state and logs.
+
+**Reason:** Operators should be able to check basic application health and diagnostics from the application itself, reducing the need for separate operational tooling. This is planned work, not a currently available feature.
+
 ## Define RPC contracts with Zod
 
 **Decision:** RPC endpoint body and response schemas are Zod schemas, and routes validate both request and response data.
