@@ -1,7 +1,6 @@
 import { randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const SECRET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
 const HASH_LENGTH = 64
@@ -91,19 +90,4 @@ export async function writeAdminSecretHash(path: string, secret: string): Promis
         await rm(temporaryPath, { force: true })
         throw error
     }
-}
-
-async function main(): Promise<void> {
-    if (process.argv.length !== 2) {
-        throw new Error('This command does not accept arguments.')
-    }
-    const secret = await resetAdminSecret()
-    process.stdout.write(`${secret}\n`)
-}
-
-if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-    main().catch((error: unknown) => {
-        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-        process.exitCode = 1
-    })
 }
