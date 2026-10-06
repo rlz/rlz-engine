@@ -56,6 +56,8 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Generated secrets avoid weak or reused human-selected passwords while remaining practical to type. Printing once keeps the plaintext out of persistent application storage; atomic replacement and restrictive permissions reduce exposure and avoid partially written credentials.
 
+**Implementation status:** `npm run admin-secret` generates a 32-character secret from an alphabet that omits visually ambiguous characters. It stores a salted scrypt record at `./auth/admin-secret` using an exclusive temporary file, file sync, and atomic rename; the resulting file has mode `0600`. The plaintext is printed after the replacement succeeds. This record format is groundwork for the planned administrative RPC verifier, which must use the same scrypt parameters and encoding.
+
 ## Provide an embeddable React administration UI
 
 **Decision:** Planned work will provide a reusable React administration UI that applications can mount at `/.adm`. The UI will prompt for the generated admin secret, authenticate its administrative RPC requests with Bearer authorization, and keep the credential in memory only so a page reload requires re-entry. Applications will be able to register administration modules. Initial modules will include audit-log browsing through the audit RPC and certificate status showing issue time, expiration time, time until planned renewal, and overdue renewal state.
@@ -67,6 +69,12 @@ These are decisions evidenced by the current implementation. Add or revise entri
 **Decision:** Modules may be authored in an application or provided by `rlz-engine`, using the same opt-in composition style. Planned modules expose independently selectable `rpc`, `admRpc`, `adm`, and `cli` facets. User RPC and administrative RPC are separate concepts in the RPC registration system: user RPC uses the normal user authentication policy and `/rpc/...` routes; `admRpc` uses the administrative Bearer secret and an administrative route under `/.adm`. The `adm` facet contributes UI sections and may rely on `admRpc`; the `cli` facet contributes commands to the common application CLI using `node app.js <plugin> <cmd> <args...>`, with the plugin name as command namespace. Applications compose selected facets rather than reimplementing their integration glue. Logging/audit and certificate administration are initial candidates.
 
 **Reason:** Keeping each capability's RPC, user interface, and command-line integration together makes library features easy to adopt while allowing applications to opt into only the parts they use. Independent facets avoid forcing a UI or command dependency on applications that only need an RPC capability.
+
+## Compose application CLI commands from modules
+
+**Decision:** Applications create a `CliEngine`, register namespaced `CliModule` objects, and call `run()` with the process arguments. A module owns its one-line description, command descriptions, argument parsers, and handlers; the application supplies deployment-specific dependencies through module factories or closures. `cmd-ts`, already a runtime dependency, parses arguments and generates nested help at module and command depth. The initial engine commands are `adm reset-secret` and `http start`; the latter receives server settings and route initialization from the application.
+
+**Reason:** The library cannot assume an application's domain, ports, static directory, or route registration. Passing these at composition time keeps configuration with the application while allowing library modules to supply reusable operational commands. `cmd-ts` provides typed argument decoding, nested subcommands, and help generated from command metadata without adding a second parser dependency. Namespace collisions, malformed command names, and missing descriptions are rejected during registration.
 
 ## Improve testability as the library evolves
 
