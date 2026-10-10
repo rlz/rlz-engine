@@ -203,5 +203,5 @@ async function signin(login: AuthState['login'], name: string, password: string)
 }
 
 function isValidEmail(s: string): boolean {
-    return z.string().email().safeParse(s).success
+    return z.email().safeParse(s).success
 }

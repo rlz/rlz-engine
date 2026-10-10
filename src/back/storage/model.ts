@@ -8,9 +8,9 @@ export interface MongoObject<T> {
 }
 
 export const SYNC_OBJECT_SCHEMA = z.object({
-    _id: z.string().uuid(),
+    _id: z.uuid(),
     data: z.object({
-        lastModified: z.string().datetime()
+        lastModified: z.iso.datetime()
     })
 })
 

@@ -1,7 +1,7 @@
 import z, { ZodType } from 'zod'
 
 export const API_GET_OBJECTS_QUERY_STRING_SCHEMA_V0 = z.object({
-    syncAfter: z.string().datetime().optional()
+    syncAfter: z.iso.datetime().optional()
 })
 
 export function API_ITEMS_RESPONSE_SCHEMA_V0<T extends ZodType>(itemsSchema: T) {
@@ -16,15 +16,15 @@ export type ApiItemsResponseV0<T extends ZodType> = z.infer<ReturnType<typeof AP
 
 export const API_GET_OBJECTS_REQUEST_SCHEMA_V0 = z
     .object({
-        ids: z.array(z.string().uuid()).min(1).readonly()
+        ids: z.array(z.uuid()).min(1).readonly()
     })
     .readonly()
 
 export type ApiGetObjectsRequestV0 = z.infer<typeof API_GET_OBJECTS_REQUEST_SCHEMA_V0>
 
 export const API_COMPARISON_OBJECT_SCHEMA_V0 = z.object({
-    id: z.string().uuid(),
-    lastModified: z.string().datetime()
+    id: z.uuid(),
+    lastModified: z.iso.datetime()
 })
 
 export type ApiComparisonObjectV0 = z.infer<typeof API_COMPARISON_OBJECT_SCHEMA_V0>

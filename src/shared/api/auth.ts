@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
 export const API_AUTH_RESPONSE_SCHEMA_V0 = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string(),
-    email: z.string().email(),
+    email: z.email(),
     tempPassword: z.string()
 })
 
@@ -11,7 +11,7 @@ export type ApiAuthResponseV0 = z.infer<typeof API_AUTH_RESPONSE_SCHEMA_V0>
 
 export const API_SIGNUP_REQUEST_SCHEMA_V0 = z.object({
     name: z.string(),
-    email: z.string().email(),
+    email: z.email(),
     password: z.string()
 })
 
