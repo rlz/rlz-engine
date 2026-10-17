@@ -4,6 +4,12 @@ import { SqliteAuditStorage } from './sqlite-storage.js'
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
 
+/** An application event passed to an audit logger. Define an app-specific union for strict typing. */
+export interface AuditEvent {
+    type: string
+    [field: string]: unknown
+}
+
 export interface AuditErrorRecord {
     name: string
     message: string
@@ -14,7 +20,7 @@ export interface AuditRecord {
     time: string
     level: LogLevel
     module: string
-    message: string
+    type: string
     data?: Record<string, unknown>
     error?: AuditErrorRecord
 }
@@ -127,42 +133,68 @@ export function initAuditLogger(config: AuditLoggerConfig): () => void {
     }
 }
 
-/** A module-scoped audit logger. Instances obtained before initAuditLogger become active after initialization. */
-export class AuditLogger {
+/**
+ * Module-scoped structured audit logger. Define a discriminated union of events in the application and
+ * specialize this class, then compose one or more domain-focused wrappers around it:
+ *
+ * ```ts
+ * type AppEvent =
+ *   | { type: 'user.registered'; userId: string }
+ *   | { type: 'payment.failed'; userId: string; reason: string }
+ *
+ * const audit = getAuditLogger<AppEvent>('APP')
+ *
+ * class AppAuditLogger {
+ *   constructor(private readonly log: AuditLogger<AppEvent> = audit) {}
+ *   userRegistered(userId: string) {
+ *     this.log.info({ type: 'user.registered', userId })
+ *   }
+ *   paymentFailed(userId: string, reason: string) {
+ *     this.log.error({ type: 'payment.failed', userId, reason })
+ *   }
+ * }
+ * ```
+ *
+ * Keep these wrappers in application code: they provide convenient domain methods while this logger
+ * owns levels, module attribution, timestamps, and output. Multiple wrappers can share the same base
+ * logger. Event fields are stored as structured data alongside `type`; do not put secrets in them.
+ * Instances obtained before initAuditLogger become active after initialization.
+ */
+export class AuditLogger<TEvent extends AuditEvent = AuditEvent> {
     constructor(private readonly module: string) {}
 
-    fatal(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('fatal', message, data, error)
+    fatal(event: TEvent, error?: Error): void {
+        this.write('fatal', event, error)
     }
 
-    error(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('error', message, data, error)
+    error(event: TEvent, error?: Error): void {
+        this.write('error', event, error)
     }
 
-    warn(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('warn', message, data, error)
+    warn(event: TEvent, error?: Error): void {
+        this.write('warn', event, error)
     }
 
-    info(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('info', message, data, error)
+    info(event: TEvent, error?: Error): void {
+        this.write('info', event, error)
     }
 
-    debug(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('debug', message, data, error)
+    debug(event: TEvent, error?: Error): void {
+        this.write('debug', event, error)
     }
 
-    trace(message: string, data?: Record<string, unknown>, error?: Error): void {
-        this.write('trace', message, data, error)
+    trace(event: TEvent, error?: Error): void {
+        this.write('trace', event, error)
     }
 
-    write(level: LogLevel, message: string, data?: Record<string, unknown>, error?: Error): void {
+    write(level: LogLevel, event: TEvent, error?: Error): void {
         if (activeSink === undefined) return
         const record: AuditRecord = {
             time: new Date().toISOString(),
             level,
             module: this.module,
-            message,
-            ...(data === undefined ? {} : { data }),
+            type: event.type,
+            data: Object.fromEntries(Object.entries(event).filter(([key]) => key !== 'type')),
             ...(error === undefined ? {} : { error: { name: error.name, message: error.message, stack: error.stack } })
         }
         try {
@@ -173,8 +205,8 @@ export class AuditLogger {
     }
 }
 
-export function getAuditLogger(module: string): AuditLogger {
-    return new AuditLogger(module)
+export function getAuditLogger<TEvent extends AuditEvent = AuditEvent>(module: string): AuditLogger<TEvent> {
+    return new AuditLogger<TEvent>(module)
 }
 
 /** Reads persisted audit records; console-only or uninitialized loggers return an empty page. */
@@ -204,7 +236,7 @@ function writeConsole(record: AuditRecord, color: boolean): void {
         record.error === undefined
             ? ''
             : `\n    error: ${(record.error.stack ?? `${record.error.name}: ${record.error.message}`).replaceAll('\n', '\n    ')}`
-    process.stderr.write(`${color ? COLORS[record.level] : ''}${prefix}${color ? '\u001b[0m' : ''} ${record.message}${details}${error}\n`)
+    process.stderr.write(`${color ? COLORS[record.level] : ''}${prefix}${color ? '\u001b[0m' : ''} ${record.type}${details}${error}\n`)
 }
 
 function reportAuditError(error: unknown, context: string): void {

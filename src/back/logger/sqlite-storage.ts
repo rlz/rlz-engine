@@ -43,7 +43,7 @@ export class SqliteAuditStorage {
                     time TEXT NOT NULL,
                     level TEXT NOT NULL,
                     module TEXT NOT NULL,
-                    message TEXT NOT NULL,
+                    type TEXT NOT NULL,
                     data TEXT,
                     error TEXT
                 ) STRICT;
@@ -53,7 +53,7 @@ export class SqliteAuditStorage {
                 CREATE INDEX IF NOT EXISTS audit_logs_module_level_time_id ON audit_logs (module, level, time, id);
             `)
             this.insertRecord = this.db.prepare(`
-                INSERT INTO audit_logs (time, level, module, message, data, error)
+                INSERT INTO audit_logs (time, level, module, type, data, error)
                 VALUES (?, ?, ?, ?, ?, ?)
             `)
             this.deleteExpired = this.db.prepare('DELETE FROM audit_logs WHERE time < ?')
@@ -78,7 +78,7 @@ export class SqliteAuditStorage {
             record.time,
             record.level,
             record.module,
-            record.message,
+            record.type,
             record.data === undefined ? null : JSON.stringify(record.data),
             record.error === undefined ? null : JSON.stringify(record.error)
         )
@@ -115,7 +115,7 @@ export class SqliteAuditStorage {
         const rows = this.db
             .prepare(
                 `
-            SELECT id, time, level, module, message, data, error
+            SELECT id, time, level, module, type, data, error
             FROM audit_logs ${where}
             ORDER BY time DESC, id DESC
             LIMIT ? OFFSET ?
@@ -157,7 +157,7 @@ interface StoredAuditRow {
     time: string
     level: AuditRecord['level']
     module: string
-    message: string
+    type: string
     data: string | null
     error: string | null
 }
@@ -168,7 +168,7 @@ function toAuditLogEntry(row: StoredAuditRow): AuditLogEntry {
         time: row.time,
         level: row.level,
         module: row.module,
-        message: row.message,
+        type: row.type,
         ...(row.data === null ? {} : { data: JSON.parse(row.data) as Record<string, unknown> }),
         ...(row.error === null ? {} : { error: JSON.parse(row.error) as AuditRecord['error'] })
     }

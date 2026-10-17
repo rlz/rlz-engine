@@ -55,7 +55,7 @@ export class SystemLogger implements FastifyBaseLogger {
     private log(level: LogLevel, obj: unknown, msg?: unknown, args: unknown[] = []): void {
         if (LEVELS[level] < LEVELS[this.threshold]) return
         const { message, data, error } = normalizeLog(obj, msg, args, this.bindingsValue)
-        this.audit.write(level, message, { ...(data ?? {}), logger: this.name }, error)
+        this.audit.write(level, { ...(data ?? {}), type: message, logger: this.name }, error)
 
         if (PRODUCTION) {
             const fields = data === undefined ? '' : ` ${formatFields(data)}`
