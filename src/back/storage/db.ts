@@ -1,7 +1,7 @@
 import { FastifyBaseLogger } from 'fastify'
 import { Collection, Db, Document, IndexDescription, MongoClient } from 'mongodb'
 
-import { logger } from '../logger.js'
+import { getSystemLogger } from '../logger/system-logger.js'
 
 export type StorageIndexDescription = IndexDescription & {
     name: string
@@ -13,7 +13,7 @@ export class MongoStorage {
     private dbName: string
 
     constructor(db: string) {
-        this.logger = logger('MongoStorage')
+        this.logger = getSystemLogger('MongoStorage')
 
         this.dbName = db
         this.client = new MongoClient('mongodb://localhost')

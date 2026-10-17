@@ -5,19 +5,22 @@ import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
 import { Ajv } from 'ajv'
 import formatsPlugin from 'ajv-formats'
-import fastify, { FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
+import fastify, { FastifyBaseLogger, FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
 import { type AcmeProvider, fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
-import { Logger } from 'pino'
 
-import { logger } from './logger.js'
+import { initAuditLogger, type AuditLoggerConfig } from './logger/audit-logger.js'
+import { getSystemLogger } from './logger/system-logger.js'
+
+const DEFAULT_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+const DEFAULT_AUDIT_MAX_RECORDS = 100_000
 
 installIntoGlobal()
 
 export type InitServerFuncType = <S extends RawServerBase>(
-    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, Logger>
+    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, FastifyBaseLogger>
 ) => Promise<void>
 
 export interface RunServerParams {
@@ -27,6 +30,12 @@ export interface RunServerParams {
     securePort?: number
     domain: string
     certDir: string
+    /** Audit retention age, in milliseconds. Defaults to 30 days. */
+    auditRetentionMs?: number
+    /** Global maximum audit record count. Defaults to 100,000. */
+    auditMaxRecords?: number
+    /** Also persist audit records in SQLite while using the console sink. */
+    auditSqlite?: boolean
     /** Certificate authority used for ACME issuance and renewal. Defaults to Let's Encrypt. */
     acmeProvider?: AcmeProvider
     staticDir: string
@@ -38,106 +47,130 @@ export async function runServer({
     debug = false,
     domain,
     certDir,
+    auditRetentionMs = DEFAULT_AUDIT_RETENTION_MS,
+    auditMaxRecords = DEFAULT_AUDIT_MAX_RECORDS,
+    auditSqlite = false,
     acmeProvider,
     staticDir,
     securePort,
     unsecurePort,
     init
 }: RunServerParams): Promise<() => Promise<void>> {
-    const L = logger('init', { debug })
-    L.info({ production }, 'runServer')
+    const sqliteConfig = { path: path.resolve('logs.sqlite'), retentionMs: auditRetentionMs, maxRecords: auditMaxRecords }
+    const auditLoggerConfig: AuditLoggerConfig =
+        production && !debug
+            ? { mode: 'sqlite', ...sqliteConfig }
+            : auditSqlite
+              ? { mode: 'sqlite+console', ...sqliteConfig }
+              : { mode: 'console' }
+    const closeAuditLogger = initAuditLogger(auditLoggerConfig)
+    try {
+        const L = getSystemLogger('init', { debug })
+        L.info({ production }, 'runServer')
 
-    const httpServer = fastify({
-        loggerInstance: logger('http', { debug }),
-        ajv: {
-            plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
-            customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+        const httpServer = fastify({
+            loggerInstance: getSystemLogger('http', { debug }) as FastifyBaseLogger,
+            ajv: {
+                plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
+                customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+            }
+        })
+
+        if (!production) {
+            await httpServer.register(fastifyCors, {
+                methods: ['get', 'post']
+            })
+            await httpServer.register(fastifyCompress)
+            await httpServer.register(fastifySensible)
+            await httpServer.register(fastifyResponseValidation, {
+                ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+            })
+
+            await init(httpServer)
+
+            httpServer.all('/api/*', async () => {
+                return httpErrors.notFound()
+            })
+
+            addStaticEndpoints(httpServer, staticDir)
+
+            await httpServer.listen({ port: unsecurePort ?? 8080 })
+            return async () => {
+                try {
+                    await httpServer.close()
+                } finally {
+                    closeAuditLogger()
+                }
+            }
         }
-    })
 
-    if (!production) {
-        await httpServer.register(fastifyCors, {
+        httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
+        await httpServer.listen({ port: unsecurePort ?? 80, host: '::' })
+
+        L.info('Get certificates')
+
+        const certAndKey = await getCertAndKey(certDir, domain, httpServer.log, acmeProvider)
+
+        L.info('Init secure server')
+
+        const httpsServer = fastify({
+            http2: true,
+            https: {
+                allowHTTP1: true,
+                cert: certAndKey.cert,
+                key: certAndKey.pkey
+            },
+            loggerInstance: getSystemLogger('https', { debug }) as FastifyBaseLogger,
+            ajv: {
+                plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
+                customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+            }
+        })
+
+        await httpsServer.register(fastifyAcmeSecurePlugin, {
+            certDir,
+            domain,
+            provider: acmeProvider
+        })
+
+        await httpsServer.register(fastifyCors, {
             methods: ['get', 'post']
         })
-        await httpServer.register(fastifyCompress)
-        await httpServer.register(fastifySensible)
-        await httpServer.register(fastifyResponseValidation, {
+        await httpsServer.register(fastifyCompress)
+        await httpsServer.register(fastifySensible)
+        await httpsServer.register(fastifyResponseValidation, {
             ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
         })
 
-        await init(httpServer)
+        await init(httpsServer)
 
-        httpServer.all('/api/*', async () => {
+        httpsServer.all('/api/*', async () => {
             return httpErrors.notFound()
         })
 
-        addStaticEndpoints(httpServer, staticDir)
+        httpsServer.all('/rpc/*', async () => {
+            return httpErrors.notFound()
+        })
 
-        await httpServer.listen({ port: unsecurePort ?? 8080 })
+        addStaticEndpoints(httpsServer, staticDir)
+        await httpsServer.listen({ port: securePort ?? 443, host: '::' })
+
+        L.info('runServer done')
         return async () => {
-            await httpServer.close()
+            try {
+                await Promise.all([httpServer.close(), httpsServer.close()])
+            } finally {
+                closeAuditLogger()
+            }
         }
-    }
-
-    httpServer.register(fastifyAcmeUnsecurePlugin, { redirectDomain: domain })
-    await httpServer.listen({ port: unsecurePort ?? 80, host: '::' })
-
-    L.info('Get certificates')
-
-    const certAndKey = await getCertAndKey(certDir, domain, httpServer.log, acmeProvider)
-
-    L.info('Init secure server')
-
-    const httpsServer = fastify({
-        http2: true,
-        https: {
-            allowHTTP1: true,
-            cert: certAndKey.cert,
-            key: certAndKey.pkey
-        },
-        loggerInstance: logger('https', { debug }),
-        ajv: {
-            plugins: [formatsPlugin.default as (opts: unknown) => Ajv],
-            customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
-        }
-    })
-
-    await httpsServer.register(fastifyAcmeSecurePlugin, {
-        certDir,
-        domain,
-        provider: acmeProvider
-    })
-
-    await httpsServer.register(fastifyCors, {
-        methods: ['get', 'post']
-    })
-    await httpsServer.register(fastifyCompress)
-    await httpsServer.register(fastifySensible)
-    await httpsServer.register(fastifyResponseValidation, {
-        ajv: { plugins: [formatsPlugin.default], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
-    })
-
-    await init(httpsServer)
-
-    httpsServer.all('/api/*', async () => {
-        return httpErrors.notFound()
-    })
-
-    httpsServer.all('/rpc/*', async () => {
-        return httpErrors.notFound()
-    })
-
-    addStaticEndpoints(httpsServer, staticDir)
-    await httpsServer.listen({ port: securePort ?? 443, host: '::' })
-
-    L.info('runServer done')
-    return async () => {
-        await Promise.all([httpServer.close(), httpsServer.close()])
+    } catch (error) {
+        closeAuditLogger()
+        throw error
     }
 }
 
 function addStaticEndpoints<S extends RawServerBase>(
-    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, Logger>,
+    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, FastifyBaseLogger>,
     staticPath: string
 ) {
     const absStaticPath = path.resolve(staticPath)

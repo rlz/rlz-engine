@@ -8,3 +8,5 @@
 - After each task, consider whether tests are needed to cover the change or prevent regressions; add and run appropriate tests when they would provide useful coverage.
 - When changing an existing decision, update the relevant spec note in the same change and explain the transition or compatibility impact.
 - Keep notes evidence-based: distinguish current behavior from open questions and planned work.
+- Do not add `index.ts` files that only re-export modules; import directly from implementation modules.
+- Avoid standalone `types.ts` files. Define types alongside the implementation or feature that owns them; create a separate type module only when a concrete design need justifies it.

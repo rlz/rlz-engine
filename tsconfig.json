@@ -18,5 +18,6 @@
         "rootDir": "src",
         "jsx": "react"
     },
+    "include": ["src"],
     "exclude": ["*.js", "tests", "dist"]
 }

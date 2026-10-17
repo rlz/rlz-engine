@@ -15,11 +15,20 @@ export function makeHttpCliModule(
                 description:
                     'Start the Fastify server using the deployment settings and route initialization supplied by the application. The process remains active until it receives a termination signal.',
                 args: {
-                    debug: flag({ long: 'debug', description: 'Enable debug logging.' })
+                    debug: flag({ long: 'debug', description: 'Enable debug logging.' }),
+                    auditSqlite: flag({
+                        long: 'audit-sqlite',
+                        description: 'Also write audit logs to SQLite when console logging is enabled.'
+                    })
                 },
-                handler: async ({ debug }) => {
+                handler: async ({ debug, auditSqlite }) => {
                     const serverParams = typeof params === 'function' ? params() : params
-                    await runServer({ ...serverParams, debug: debug || serverParams.debug, init })
+                    await runServer({
+                        ...serverParams,
+                        debug: debug || serverParams.debug,
+                        auditSqlite: auditSqlite || serverParams.auditSqlite,
+                        init
+                    })
                 }
             }
         }
