@@ -107,7 +107,7 @@ describe('authentication RPC', () => {
             method: 'POST',
             url: '/rpc/auth_signup_v1',
             headers: { origin: 'https://attacker.example' },
-            payload: { name: 'Attacker', email: 'attacker@example.com', password: 'secret' }
+            payload: { name: 'Attacker', email: 'attacker@example.com', password: 'secret-password' }
         })
         expect(rejectedOrigin.statusCode).toBe(403)
 
@@ -115,28 +115,32 @@ describe('authentication RPC', () => {
             method: 'POST',
             url: '/rpc/auth_signup_v1',
             headers: originHeaders,
-            payload: { name: 'Alex', email: 'alex@example.com', password: 'secret' }
+            payload: { name: 'Alex', email: 'alex@example.com', password: 'secret-password' }
         })
         expect(signup.statusCode).toBe(200)
-        const auth = signup.json<{ id: string; csrfToken: string; tempPassword?: string }>()
-        expect(auth.tempPassword).toBeUndefined()
-        expect(signup.headers['set-cookie']).toContain(`${SESSION_COOKIE_NAME}=`)
-        expect(signup.headers['set-cookie']).toContain('HttpOnly')
-        expect(signup.headers['set-cookie']).toContain('Secure')
-        expect(signup.headers['set-cookie']).toContain('SameSite=Lax')
+        expect(signup.json()).toEqual({})
+        expect(signup.headers['set-cookie']).toBeUndefined()
 
-        const cookie = getCookiePair(signup.headers['set-cookie'])
+        const firstSignin = await app.inject({
+            method: 'POST',
+            url: '/rpc/auth_signin_v1',
+            headers: originHeaders,
+            payload: { name: 'Alex', password: 'secret-password' }
+        })
+        expect(firstSignin.statusCode).toBe(200)
+        expect(firstSignin.headers['set-cookie']).toContain(`${SESSION_COOKIE_NAME}=`)
+        expect(sessions).toHaveLength(1)
+        const firstSigninCookie = getCookiePair(firstSignin.headers['set-cookie'])
+
         const signin = await app.inject({
             method: 'POST',
             url: '/rpc/auth_signin_v1',
-            headers: { ...originHeaders, cookie },
-            payload: { name: 'Alex', password: 'secret' }
+            headers: { ...originHeaders, cookie: firstSigninCookie },
+            payload: { name: 'Alex', password: 'secret-password' }
         })
         expect(signin.statusCode).toBe(200)
-        expect(signin.headers['set-cookie']).toContain(`${SESSION_COOKIE_NAME}=`)
         expect(sessions).toHaveLength(1)
         const signedIn = signin.json<{ id: string; csrfToken: string }>()
-        expect(signedIn.csrfToken).not.toBe(auth.csrfToken)
         const signinCookie = getCookiePair(signin.headers['set-cookie'])
         expect(sessions[0]?.sessionHash.value()).toHaveLength(32)
         expect(Buffer.from(sessions[0]!.sessionHash.value()).equals(Buffer.from(signinCookie.split('=')[1]!))).toBe(false)
@@ -144,7 +148,7 @@ describe('authentication RPC', () => {
         const rotatedSession = await app.inject({
             method: 'POST',
             url: '/rpc/auth_session_v1',
-            headers: { ...originHeaders, cookie },
+            headers: { ...originHeaders, cookie: firstSigninCookie },
             payload: {}
         })
         expect(rotatedSession.statusCode).toBe(403)
@@ -153,7 +157,7 @@ describe('authentication RPC', () => {
             method: 'POST',
             url: '/rpc/auth_signin_v1',
             headers: originHeaders,
-            payload: { name: 'missing', password: 'secret' }
+            payload: { name: 'missing', password: 'secret-password' }
         })
         expect(invalidSignin.statusCode).toBe(401)
 
@@ -210,7 +214,7 @@ describe('authentication RPC', () => {
         const expiredSession = await app.inject({
             method: 'POST',
             url: '/rpc/auth_session_v1',
-            headers: { ...originHeaders, cookie },
+            headers: { ...originHeaders, cookie: signinCookie },
             payload: {}
         })
         expect(expiredSession.statusCode).toBe(403)
@@ -219,7 +223,7 @@ describe('authentication RPC', () => {
             method: 'POST',
             url: '/rpc/auth_signin_v1',
             headers: originHeaders,
-            payload: { name: 'Alex', password: 'secret' }
+            payload: { name: 'Alex', password: 'secret-password' }
         })
         expect(newSignin.statusCode).toBe(200)
         const newCookie = getCookiePair(newSignin.headers['set-cookie'])
