@@ -56,7 +56,8 @@ interface RpcEndpointCookieAuth<
 }
 
 export type RpcEndpoint<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> =
-    RpcEndpointAnon<BodyT, RespT, OptsT> | RpcEndpointCookieAuth<BodyT, RespT, OptsT, UserT>
+    | RpcEndpointAnon<BodyT, RespT, OptsT>
+    | RpcEndpointCookieAuth<BodyT, RespT, OptsT, UserT>
 
 export interface RpcEndpointInfo {
     v: number

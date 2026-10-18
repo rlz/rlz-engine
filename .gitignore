@@ -4,4 +4,6 @@ coverage
 .*
 !.prettierrc.json
 !.prettierignore
+!.oxlintrc.json
+!.oxfmtrc.json
 *.demo.ts

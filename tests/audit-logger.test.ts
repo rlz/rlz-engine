@@ -6,9 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { getAuditLogger, getAuditLogReader, initAuditLogger } from '../src/back/logger/audit-logger.js'
 import { SystemLogger } from '../src/back/logger/system-logger.js'
 
-type AppEvent =
-    | { type: 'user.registered'; userId: string }
-    | { type: 'payment.failed'; userId: string; reason: string }
+type AppEvent = { type: 'user.registered'; userId: string } | { type: 'payment.failed'; userId: string; reason: string }
 
 describe('audit logger', () => {
     let workingDirectory: string | undefined

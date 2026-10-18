@@ -14,6 +14,12 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Using npm avoids requiring a separate package manager while retaining reproducible installs through npm's lockfile. The trade-off is that dependency resolution and installation layout follow npm semantics.
 
+## Use TypeScript 7, Oxlint, and Oxfmt for development tooling
+
+**Decision:** TypeScript 7 provides project compilation and type checking through the `@typescript/native` package alias. The `typescript` package name points to the TypeScript 6 compatibility package because `zod-to-ts` and the RPC client generator use the TypeScript Compiler API, which TypeScript 7 does not yet expose. Oxlint handles lint rules, including type-aware floating-promise checks through `oxlint-tsgolint`; Oxfmt handles formatting. npm scripts expose `lint`, `format`, and `format:check`. ESLint, typescript-eslint, Prettier, and their configuration are not used.
+
+**Reason:** These tools use the TypeScript 7 native compiler and consolidate linting and formatting around the Oxc toolset. The TypeScript 6 compatibility alias preserves existing Compiler API consumers until they support the new API. Type-aware linting retains the prior floating-promise safeguard. The trade-off is that Oxlint's rule set differs from ESLint plugins: the previous simple-import-sort ordering and custom stylistic and naming-convention rules are not part of the new lint configuration.
+
 ## Deploy one application per virtual machine
 
 **Decision:** Applications using `rlz-engine` are deployed to network-accessible virtual machines, with one application per VM. The deployment model does not require Docker.

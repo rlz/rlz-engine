@@ -46,7 +46,10 @@ describe('client RPC transport', () => {
         [404, NotFound],
         [418, HttpError]
     ])('maps HTTP %i to its transport error class', async (status, ErrorClass) => {
-        vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status, statusText: 'Rejected' })))
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async () => new Response(null, { status, statusText: 'Rejected' }))
+        )
 
         await expect(rpcCall('users', 'list', 1, {})).rejects.toBeInstanceOf(ErrorClass)
     })
