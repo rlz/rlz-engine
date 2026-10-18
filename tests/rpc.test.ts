@@ -103,6 +103,44 @@ describe('RPC contracts', () => {
         await app.close()
     })
 
+    it('generates valid JSON Schema for strict object intersections', async () => {
+        const intersection = z.intersection(z.strictObject({ left: z.string() }), z.strictObject({ right: z.string() }))
+        const builder = rpc('intersection').add({
+            name: 'echo',
+            v: 1,
+            anonimous: true,
+            bodySchema: intersection,
+            respSchema: z.strictObject({ left: z.string(), right: z.string() }),
+            action: (body) => body
+        })
+        const app = fastify({
+            ajv: {
+                customOptions: { useDefaults: false, coerceTypes: false, removeAdditional: false, allErrors: true, verbose: true }
+            }
+        })
+        await app.register(sensible)
+        await app.register(responseValidation)
+        await app.register(builder.makeFastifyPlugin())
+        await app.ready()
+
+        const valid = await app.inject({
+            method: 'POST',
+            url: '/rpc/intersection_echo_v1',
+            payload: { left: 'a', right: 'b' }
+        })
+        expect(valid.statusCode).toBe(200)
+        expect(valid.json()).toEqual({ left: 'a', right: 'b' })
+
+        const extraProperty = await app.inject({
+            method: 'POST',
+            url: '/rpc/intersection_echo_v1',
+            payload: { left: 'a', right: 'b', extra: true }
+        })
+        expect(extraProperty.statusCode).toBe(400)
+
+        await app.close()
+    })
+
     it('generates client methods and types from the registered endpoint contract', () => {
         const builder = rpc('example').add({
             name: 'echo',

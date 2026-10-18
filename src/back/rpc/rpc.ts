@@ -89,15 +89,11 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                 {
                     schema: {
                         body: this.bodySchema.toJSONSchema({
-                            target: 'draft-07',
-                            // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
-                            override: removeAllOfAdditionalProperties
+                            target: 'draft-07'
                         }),
                         response: {
                             200: this.respSchema.toJSONSchema({
-                                target: 'draft-07',
-                                // TODO: remove when https://github.com/colinhacks/zod/issues/5491 get resolved
-                                override: removeAllOfAdditionalProperties
+                                target: 'draft-07'
                             })
                         }
                     }
@@ -211,13 +207,11 @@ export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPlugi
                     {
                         schema: {
                             body: endpoint.bodySchema.toJSONSchema({
-                                target: 'draft-07',
-                                override: removeAllOfAdditionalProperties
+                                target: 'draft-07'
                             }),
                             response: {
                                 200: endpoint.respSchema.toJSONSchema({
-                                    target: 'draft-07',
-                                    override: removeAllOfAdditionalProperties
+                                    target: 'draft-07'
                                 })
                             }
                         }
@@ -240,13 +234,4 @@ export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPlugi
 
 export function admRpc<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions>(name: string) {
     return new AdmRpcPluginBuilder<OptsT>(name)
-}
-
-function removeAllOfAdditionalProperties(ctx: {
-    path: (string | number)[]
-    jsonSchema: { type?: unknown; additionalProperties?: unknown }
-}) {
-    if (ctx.path.at(-2) === 'allOf' && ctx.jsonSchema.type === 'object') {
-        delete ctx.jsonSchema.additionalProperties
-    }
 }
