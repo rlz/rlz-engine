@@ -67,6 +67,9 @@ export class CliEngine {
     }
 }
 
+/** Development-only commands belong in a separate entry point from the application's operational CLI. */
+export class DevCliEngine extends CliEngine {}
+
 function validateName(name: string, kind: string): void {
     if (!/^[a-z][a-z0-9-]*$/.test(name)) {
         throw new Error(`Invalid CLI ${kind} name: ${name}`)

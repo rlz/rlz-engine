@@ -162,6 +162,13 @@ export interface AdmRpcEndpoint<BodyT extends object = object, RespT extends obj
     ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
 }
 
+export interface AdmRpcEndpointInfo {
+    v: number
+    name: string
+    bodySchema: z.ZodType
+    respSchema: z.ZodType
+}
+
 export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions> {
     readonly name: string
     readonly endpoints: AdmRpcEndpoint<object, object, OptsT>[] = []

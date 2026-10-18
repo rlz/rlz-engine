@@ -1,5 +1,4 @@
-import { inspect } from 'node:util'
-
+import { formatAuditRecord } from './format.js'
 import { SqliteAuditStorage } from './sqlite-storage.js'
 
 export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'
@@ -64,15 +63,6 @@ interface SqliteAndConsoleAuditLoggerConfig extends Omit<SqliteAuditLoggerConfig
 }
 
 export type AuditLoggerConfig = ConsoleAuditLoggerConfig | SqliteAuditLoggerConfig | SqliteAndConsoleAuditLoggerConfig
-
-const COLORS: Record<LogLevel, string> = {
-    fatal: '\u001b[35m',
-    error: '\u001b[31m',
-    warn: '\u001b[33m',
-    info: '\u001b[32m',
-    debug: '\u001b[36m',
-    trace: '\u001b[90m'
-}
 
 let activeSink: AuditSink | undefined
 let closeActiveSink: (() => void) | undefined
@@ -222,21 +212,7 @@ export function getAuditLogReader(): AuditLogReader {
 }
 
 function writeConsole(record: AuditRecord, color: boolean): void {
-    const prefix = `${record.time} ${record.level.toUpperCase()} [${record.module}]`
-    const details =
-        record.data === undefined
-            ? ''
-            : Object.entries(record.data)
-                  .map(([key, value]) => {
-                      const formattedValue = inspect(value, { colors: color, compact: true, depth: 1, breakLength: Infinity })
-                      return `\n    ${key}: ${formattedValue.replaceAll('\n', '\n    ')}`
-                  })
-                  .join('')
-    const error =
-        record.error === undefined
-            ? ''
-            : `\n    error: ${(record.error.stack ?? `${record.error.name}: ${record.error.message}`).replaceAll('\n', '\n    ')}`
-    process.stderr.write(`${color ? COLORS[record.level] : ''}${prefix}${color ? '\u001b[0m' : ''} ${record.type}${details}${error}\n`)
+    process.stderr.write(formatAuditRecord(record, color))
 }
 
 function reportAuditError(error: unknown, context: string): void {

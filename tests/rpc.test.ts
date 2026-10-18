@@ -1,4 +1,5 @@
 import fastify from 'fastify'
+import formatsPlugin from 'ajv-formats'
 import sensible from '@fastify/sensible'
 import responseValidation from '@fastify/response-validation'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -7,8 +8,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import z from 'zod'
 
-import { generateClient } from '../src/back/rpc/gen.js'
+import { generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
 import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
+import { getAuditLogger, initAuditLogger } from '../src/back/logger/audit-logger.js'
+import { LOGGER_MODULE } from '../src/back/logger/module.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
@@ -25,7 +28,7 @@ describe('RPC contracts', () => {
             },
             action: (userId) => ({ userId })
         })
-        const app = fastify()
+        const app = fastify({ ajv: { plugins: [formatsPlugin.default] } })
         await app.register(sensible)
         await app.register(responseValidation)
         await app.register(builder.makeFastifyPlugin())
@@ -115,6 +118,24 @@ describe('RPC contracts', () => {
         expect(generated).toContain('2')
     })
 
+    it('generates typed administrative client methods using the admin secret transport', () => {
+        const builder = admRpc('audit').add({
+            name: 'logs',
+            v: 1,
+            bodySchema: z.object({ limit: z.number().optional() }),
+            respSchema: z.object({ total: z.number() }),
+            action: () => ({ total: 0 })
+        })
+
+        const generated = generateAdmClient('admin-client.ts', builder)
+        expect(generated).toContain('AdmAuthParam')
+        expect(generated).toContain('admRpcCall')
+        expect(generated).toContain('RpcBodyAuditLogsV1')
+        expect(generated).toContain('RpcRespAuditLogsV1')
+        expect(generated).toContain('logs: async (auth: AdmAuthParam, body: RpcBodyAuditLogsV1)')
+        expect(generated).toContain('ADM_RPC_CLIENT')
+    })
+
     it('protects administrative RPC routes with the admin Bearer secret', async () => {
         const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-adm-rpc-'))
         const secret = 'a-valid-administrative-secret'
@@ -155,6 +176,56 @@ describe('RPC contracts', () => {
             expect(valid.json()).toEqual({ available: true })
         } finally {
             await app.close()
+            await rm(workingDirectory, { recursive: true, force: true })
+        }
+    })
+
+    it('exposes filtered audit pages through the protected administrative RPC', async () => {
+        const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-audit-rpc-'))
+        const secret = 'a-valid-audit-secret'
+        await writeAdminSecretHash(join(workingDirectory, 'auth', 'admin-secret'), secret)
+        const closeLogger = initAuditLogger({
+            mode: 'sqlite',
+            path: join(workingDirectory, 'logs.sqlite'),
+            retentionMs: 60_000,
+            maxRecords: 100,
+            cleanupIntervalMs: 60_000
+        })
+        getAuditLogger('APP').info({ type: 'user.created', userId: 'user-1' })
+        getAuditLogger('OTHER').error({ type: 'request.failed' })
+
+        const app = fastify({ ajv: { plugins: [formatsPlugin.default] } })
+        await app.register(sensible)
+        await app.register(responseValidation)
+        await app.register(LOGGER_MODULE.makeAdmRpc().makeFastifyPlugin(), { workingDirectory })
+        await app.ready()
+
+        try {
+            const unauthorized = await app.inject({ method: 'POST', url: '/.adm/rpc/audit_logs_v1', payload: {} })
+            expect(unauthorized.statusCode).toBe(403)
+
+            const valid = await app.inject({
+                method: 'POST',
+                url: '/.adm/rpc/audit_logs_v1',
+                headers: { authorization: `Bearer ${secret}` },
+                payload: { module: 'APP', level: 'info' }
+            })
+            expect(valid.statusCode).toBe(200)
+            expect(valid.json()).toMatchObject({
+                total: 1,
+                records: [{ module: 'APP', type: 'user.created', data: { userId: 'user-1' } }]
+            })
+
+            const invalidPageSize = await app.inject({
+                method: 'POST',
+                url: '/.adm/rpc/audit_logs_v1',
+                headers: { authorization: `Bearer ${secret}` },
+                payload: { limit: 1001 }
+            })
+            expect(invalidPageSize.statusCode).toBe(400)
+        } finally {
+            await app.close()
+            closeLogger()
             await rm(workingDirectory, { recursive: true, force: true })
         }
     })

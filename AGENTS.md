@@ -10,3 +10,6 @@
 - Keep notes evidence-based: distinguish current behavior from open questions and planned work.
 - Do not add `index.ts` files that only re-export modules; import directly from implementation modules.
 - Avoid standalone `types.ts` files. Define types alongside the implementation or feature that owns them; create a separate type module only when a concrete design need justifies it.
+- Develop each cohesive feature as a directory (for example, `src/back/logger/`) with a `module.ts` entry point exporting an uppercase `<FEATURE>_MODULE` object, such as `LOGGER_MODULE`.
+- Put optional integration factories on that feature object using `makeCli()`, `makeDevCli()`, `makeRpc()`, `makeAdmRpc()`, or `makeAdm()` as needed. Omit facets a feature does not provide; do not add empty placeholder methods.
+- Keep feature implementation and its integration factories inside the feature directory. Compose selected facets in the application entry point; development-only commands belong to `DevCliEngine` and should stay out of production CLI registration.

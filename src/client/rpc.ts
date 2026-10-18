@@ -39,6 +39,12 @@ function url(rpcName: string, callName: string, version: number): string {
     return `${domain}rpc/${rpcName}_${callName}_v${version}`
 }
 
+function admUrl(rpcName: string, callName: string, version: number): string {
+    const domain = getFrontConfig().apiDomain
+
+    return `${domain}.adm/rpc/${rpcName}_${callName}_v${version}`
+}
+
 const GZIP_THRESHOLD = 16 * 1024
 
 async function prepareBody(request: object): Promise<Blob | string> {
@@ -62,11 +68,36 @@ export interface BearerAuthParam {
     bearerToken: string
 }
 
+export interface AdmAuthParam {
+    adminSecret: string
+}
+
 export async function rpcCall<BodyT extends object, RespT extends object>(
     auth: AuthParam | BearerAuthParam | null,
     rpcName: string,
     callName: string,
     version: number,
+    bodyObject: BodyT
+): Promise<RespT> {
+    const authorization =
+        auth === null ? undefined : 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `${auth.userId}:${auth.tempPassword}`
+
+    return request(url(rpcName, callName, version), authorization, bodyObject)
+}
+
+export async function admRpcCall<BodyT extends object, RespT extends object>(
+    auth: AdmAuthParam,
+    rpcName: string,
+    callName: string,
+    version: number,
+    bodyObject: BodyT
+): Promise<RespT> {
+    return request(admUrl(rpcName, callName, version), `Bearer ${auth.adminSecret}`, bodyObject)
+}
+
+async function request<BodyT extends object, RespT extends object>(
+    u: string,
+    authorization: string | undefined,
     bodyObject: BodyT
 ): Promise<RespT> {
     const headers: Record<string, string> = {}
@@ -80,11 +111,8 @@ export async function rpcCall<BodyT extends object, RespT extends object>(
         }
     }
 
-    if (auth !== null) {
-        headers['authorization'] = 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `${auth.userId}:${auth.tempPassword}`
-    }
+    if (authorization !== undefined) headers['authorization'] = authorization
 
-    const u = url(rpcName, callName, version)
     const resp = await fetch(u, {
         method: 'post',
         headers,

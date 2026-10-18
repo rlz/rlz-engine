@@ -85,45 +85,7 @@ export class SqliteAuditStorage {
     }
 
     read(query: AuditLogQuery): AuditLogPage {
-        validatePage(query)
-        const from = query.from === undefined ? undefined : normalizeTime(query.from, 'from')
-        const to = query.to === undefined ? undefined : normalizeTime(query.to, 'to')
-        if (from !== undefined && to !== undefined && from > to) {
-            throw new RangeError('Audit query from must not be later than to')
-        }
-        const conditions: string[] = []
-        const values: (string | number)[] = []
-        if (from !== undefined) {
-            conditions.push('time >= ?')
-            values.push(from)
-        }
-        if (to !== undefined) {
-            conditions.push('time <= ?')
-            values.push(to)
-        }
-        if (query.module !== undefined) {
-            conditions.push('module = ?')
-            values.push(query.module)
-        }
-        if (query.level !== undefined) {
-            conditions.push('level = ?')
-            values.push(query.level)
-        }
-
-        const where = conditions.length === 0 ? '' : `WHERE ${conditions.join(' AND ')}`
-        const count = this.db.prepare(`SELECT COUNT(*) AS count FROM audit_logs ${where}`).get(...values) as { count: number }
-        const rows = this.db
-            .prepare(
-                `
-            SELECT id, time, level, module, type, data, error
-            FROM audit_logs ${where}
-            ORDER BY time DESC, id DESC
-            LIMIT ? OFFSET ?
-        `
-            )
-            .all(...values, query.limit, query.offset) as unknown as StoredAuditRow[]
-
-        return { records: rows.map(toAuditLogEntry), total: count.count }
+        return readAuditLogDatabase(this.db, query)
     }
 
     close(): void {
@@ -150,6 +112,58 @@ export class SqliteAuditStorage {
         const targetCount = Math.max(0, this.options.maxRecords - margin)
         this.deleteOldest.run(countRow.count - targetCount)
     }
+}
+
+/** Reads an existing audit database without creating, pruning, or modifying it. */
+export function readAuditLogFile(path: string, query: AuditLogQuery): AuditLogPage {
+    const db = new DatabaseSync(path, { readOnly: true })
+    try {
+        return readAuditLogDatabase(db, query)
+    } finally {
+        db.close()
+    }
+}
+
+function readAuditLogDatabase(db: DatabaseSync, query: AuditLogQuery): AuditLogPage {
+    validatePage(query)
+    const from = query.from === undefined ? undefined : normalizeTime(query.from, 'from')
+    const to = query.to === undefined ? undefined : normalizeTime(query.to, 'to')
+    if (from !== undefined && to !== undefined && from > to) {
+        throw new RangeError('Audit query from must not be later than to')
+    }
+    const conditions: string[] = []
+    const values: (string | number)[] = []
+    if (from !== undefined) {
+        conditions.push('time >= ?')
+        values.push(from)
+    }
+    if (to !== undefined) {
+        conditions.push('time <= ?')
+        values.push(to)
+    }
+    if (query.module !== undefined) {
+        conditions.push('module = ?')
+        values.push(query.module)
+    }
+    if (query.level !== undefined) {
+        conditions.push('level = ?')
+        values.push(query.level)
+    }
+
+    const where = conditions.length === 0 ? '' : `WHERE ${conditions.join(' AND ')}`
+    const count = db.prepare(`SELECT COUNT(*) AS count FROM audit_logs ${where}`).get(...values) as { count: number }
+    const rows = db
+        .prepare(
+            `
+            SELECT id, time, level, module, type, data, error
+            FROM audit_logs ${where}
+            ORDER BY time DESC, id DESC
+            LIMIT ? OFFSET ?
+        `
+        )
+        .all(...values, query.limit, query.offset) as unknown as StoredAuditRow[]
+
+    return { records: rows.map(toAuditLogEntry), total: count.count }
 }
 
 interface StoredAuditRow {
