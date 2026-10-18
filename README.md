@@ -29,12 +29,12 @@ import { syncItems } from 'rlz-engine/client/sync.js'
 
 Each backend feature lives in a cohesive directory and exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. The object contains only the integration factories that feature supports. Applications invoke the factories for the integrations they want, then pass the returned facet values to `composeModules()`.
 
-| Module          | Facets                      | Purpose                                                         |
-| --------------- | --------------------------- | --------------------------------------------------------------- |
-| `AUTH_MODULE`   | `makeCli()`                 | `adm reset-secret` administrative secret command                |
-| `HTTP_MODULE`   | `makeCli(params, init)`     | `http start` server command                                     |
-| `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()` | Audit-log reader command and protected audit query endpoint     |
-| `RPC_MODULE`    | `makeDevCli(options)`       | Generate user and administrative RPC clients during development |
+| Module          | Facets                          | Purpose                                                         |
+| --------------- | ------------------------------- | --------------------------------------------------------------- |
+| `AUTH_MODULE`   | `makeRpc(storage)`, `makeCli()` | Signup/signin/logout RPC endpoints and admin secret command     |
+| `HTTP_MODULE`   | `makeCli(params, init)`         | `http start` server command                                     |
+| `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()`     | Audit-log reader command and protected audit query endpoint     |
+| `RPC_MODULE`    | `makeDevCli(options)`           | Generate user and administrative RPC clients during development |
 
 The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI and certificate-status module remain planned; the administrative RPC transport and audit-log endpoint are available now.
 
@@ -81,7 +81,7 @@ await devCli.run()
 
 `composeModules()` accepts any combination of `cli`, `devCli`, `rpc`, and `admRpc` arrays; omit facets the application does not use. For RPC builders that need Fastify plugin options, provide `rpcOptions` or `admRpcOptions`, keyed by each builder's `name` (for example, `{ audit: { workingDirectory: appDirectory } }`). The returned object has `registerCli()`, `registerDevCli()`, `registerRpc()`, and `registerAdmRpc()` methods. RPC registration methods are asynchronous and register plugins in array order. Duplicate module or plugin names within the same category throw during composition. Operational and development commands remain separate so client generation does not need to be included in production command setup. Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show progressively narrower command help.
 
-`AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
+`AUTH_MODULE.makeRpc(storage)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
 
 ## HTTP server
 
@@ -138,7 +138,7 @@ await server.register(userRpc.makeFastifyPlugin())
 await server.register(adminRpc.makeFastifyPlugin())
 ```
 
-User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated routes accept `Authorization: Bearer <userId:password>` and temporarily continue to accept the legacy `Authorization: <userId:password>` form. The endpoint's `auth` callback validates credentials and returns the user value passed to `action`.
+User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated routes accept `Authorization: Bearer <userId:password>`. The endpoint's `auth` callback validates credentials and returns the user value passed to `action`.
 
 Administrative endpoints are served at `/.adm/rpc/<plugin>_<endpoint>_v<version>` and accept only `Authorization: Bearer <admin-secret>`. The secret is checked against the salted scrypt hash in `./auth/admin-secret` relative to the process working directory. Use the operational `adm reset-secret` command to create or replace it; the generated plaintext is printed once. The server caches the hash per process and path, so restart a running server after resetting the secret.
 
@@ -146,13 +146,22 @@ Administrative endpoints are served at `/.adm/rpc/<plugin>_<endpoint>_v<version>
 
 ### RPC transport
 
-`client/rpc.js` exports `rpcCall()`, `admRpcCall()`, auth parameter types, and `HttpError`, `Unauthorized`, `Forbidden`, and `NotFound` errors. Requests and responses are JSON. Request bodies larger than 16 KiB are gzip-compressed. User auth supports either the current Bearer-wrapped credential pair or the legacy header form; admin auth is a separate secret-only Bearer contract. Configure the API base URL with `initFrontConfig({ apiDomain })` from `client/config.js`; the default is `/` in production and `http://localhost:8080/` otherwise.
+`client/rpc.js` exports `rpcCall()`, `admRpcCall()`, auth parameter types, and `HttpError`, `Unauthorized`, `Forbidden`, and `NotFound` errors. Requests and responses are JSON. Request bodies larger than 16 KiB are gzip-compressed. User auth uses a Bearer-wrapped credential pair; admin auth is a separate secret-only Bearer contract. Configure the RPC base URL with `initFrontConfig({ apiDomain })` from `client/config.js`; the default is `/` in production and `http://localhost:8080/` otherwise.
 
-## Authentication and legacy HTTP API
+## Authentication RPC
 
-`back/auth` contains `AuthStorage`, user signup/signin/logout and credential verification helpers, plus the administrative-secret implementation. `AUTH_API` in `back/auth/controllers.js` registers the existing legacy HTTP authentication routes. These routes and the `client/api` helpers remain available for compatibility; applications can use RPC for new contracts. The shared request and response schemas for the legacy auth and sync APIs are in `shared/api/`.
+`back/auth` contains `AuthStorage`, user signup/signin/logout and credential verification helpers, plus the administrative-secret implementation. `AUTH_MODULE.makeRpc(storage)` provides anonymous `signup` and `signin` endpoints and an authenticated `logout` endpoint under `/rpc/auth_*_v1`. Register this builder with `composeModules()` like other RPC feature modules. Signup and signin preserve the existing response fields and validation, and invalid credentials return 401.
 
-`client/api/api.js` exports `apiCall()` and HTTP error classes. `client/api/auth.js` provides `apiSignup()`, `apiSignin()`, and `apiLogout()`. Login state is available through `useAuthState` in `client/state/auth.js` and is persisted with Zustand.
+`SignupSigninScreen` accepts an `authClient` adapter. Pass callbacks backed by the application's generated `RPC_CLIENT.auth.signup()` and `RPC_CLIENT.auth.signin()` methods:
+
+```ts
+const authClient = {
+    signup: (name, email, password) => RPC_CLIENT.auth.signup({ name, email, password }),
+    signin: (name, password) => RPC_CLIENT.auth.signin({ name, password })
+}
+```
+
+Login state is available through `useAuthState` in `client/state/auth.js` and is persisted with Zustand. The `/api/...` routes and `apiCall()` transport have been removed; RPC is the only supported application protocol.
 
 ## Logging and audit records
 
@@ -178,11 +187,11 @@ Structured fields are persisted as provided; do not include passwords, admin sec
 
 `MongoStorage` in `back/storage/db.js` wraps MongoDB collections and reconciles indexes to the configured descriptions: non-system indexes not listed in the configuration are removed, and missing configured indexes are created. `back/storage/model.js` defines `MongoObject<T>` and the shared sync-object schema. `AuthStorage` is separate and stores authentication data.
 
-`back/storage/sync.js` provides `getAll()` for listing an owner's object IDs and modification times. The client-side `syncItems()` helper in `client/sync.js` compares these timestamps with local items, pushes newer local objects, and fetches newer or unknown remote objects. The sync helpers do not define application-specific merging or durable local storage; callers provide item access and update behavior. Shared legacy API schemas for sync requests and responses live in `shared/api/sync.js`.
+`back/storage/sync.js` provides `getAll()` for listing an owner's object IDs and modification times. The client-side `syncItems()` helper in `client/sync.js` compares these timestamps with local items, pushes newer local objects, and fetches newer or unknown remote objects. The sync helpers do not define application-specific merging, RPC endpoint names, or durable local storage; callers provide RPC-backed item access and update behavior.
 
 ## React client components and state
 
-- `SignupSigninScreen` provides the existing signup/signin screen; applications supply its `appName` prop.
+- `SignupSigninScreen` provides the signup/signin screen; applications supply its `appName` and generated-client-backed `authClient` props.
 - `NotFound` is the 404 screen.
 - `ItemsSelect` is a reusable item selector; its `ItemType` and `ItemsType` types are exported alongside it.
 - `useAuthState` holds persisted authentication state.
@@ -192,7 +201,7 @@ These are building blocks for an application UI. The package does not provide a 
 
 ## Shared utilities
 
-`shared/utils/datetime.js` exports `isValidDateTime()`, `assertValidDateTime()`, `toValidDateTime()`, and `utcToday()` for Luxon `DateTime` values. Shared API schemas and inferred types for legacy authentication and synchronization are in `shared/api/auth.js` and `shared/api/sync.js`.
+`shared/utils/datetime.js` exports `isValidDateTime()`, `assertValidDateTime()`, `toValidDateTime()`, and `utcToday()` for Luxon `DateTime` values. Authentication RPC schemas are owned by `back/auth/module.js`; applications generate their client types from that builder.
 
 ## Development
 

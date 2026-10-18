@@ -15,7 +15,7 @@ import { LOGGER_MODULE } from '../src/back/logger/module.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
-    it('accepts Bearer and legacy credentials but rejects unsupported authorization schemes', async () => {
+    it('accepts Bearer credentials and rejects legacy or unsupported authorization schemes', async () => {
         const authenticatedUsers: string[] = []
         const builder = rpc('example').add({
             name: 'private',
@@ -40,8 +40,7 @@ describe('RPC contracts', () => {
             headers: { authorization: 'user-1:password' },
             payload: {}
         })
-        expect(legacy.statusCode).toBe(200)
-        expect(legacy.json()).toEqual({ userId: 'user-1' })
+        expect(legacy.statusCode).toBe(403)
 
         const bearer = await app.inject({
             method: 'POST',
@@ -59,7 +58,7 @@ describe('RPC contracts', () => {
             payload: {}
         })
         expect(unsupported.statusCode).toBe(403)
-        expect(authenticatedUsers).toEqual(['user-1', 'user-2'])
+        expect(authenticatedUsers).toEqual(['user-2'])
         await app.close()
     })
 

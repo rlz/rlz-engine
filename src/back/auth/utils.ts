@@ -1,16 +1,21 @@
 import { httpErrors } from '@fastify/sensible'
 import { randomBytes, scryptSync } from 'crypto'
-import { FastifyRequest } from 'fastify'
 import { DateTime } from 'luxon'
 import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
 
-import { ApiAuthResponseV0 } from '../../shared/api/auth.js'
 import { AuthStorage } from './storage.js'
+
+export interface AuthResponse {
+    id: string
+    name: string
+    email: string
+    tempPassword: string
+}
 
 const TEMP_PASSWORD_SALT = Buffer.from('cashmony-temp-password-salt', 'utf8')
 
-export async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<ApiAuthResponseV0> {
+export async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<AuthResponse> {
     const salt = randomBytes(64)
     const hash = calcHash(password, salt)
     const id = uuidv7()
@@ -32,7 +37,7 @@ export async function signup(storage: AuthStorage, name: string, email: string, 
     }
 }
 
-export async function signin(storage: AuthStorage, name: string, password: string): Promise<ApiAuthResponseV0 | null> {
+export async function signin(storage: AuthStorage, name: string, password: string): Promise<AuthResponse | null> {
     const u = await storage.getUser(name)
     if (u === null) {
         return null
@@ -57,7 +62,7 @@ export async function signin(storage: AuthStorage, name: string, password: strin
 }
 
 export async function logout(storage: AuthStorage, userId: string, tempPassword: string) {
-    const hash = calcHash(tempPassword, TEMP_PASSWORD_SALT)
+    const hash = calcTempPasswordHash(Buffer.from(tempPassword, 'base64'))
     await storage.deleteTempPassword(userId, new Binary(hash))
 }
 
@@ -79,16 +84,6 @@ async function makeTempPassword(storage: AuthStorage, userId: string): Promise<s
     // Temp passwords also are removed from Mongo by TTL index, make sure expirity dates are syncronised
     await storage.pushTempPassword(userId, new Binary(passwordHash), DateTime.utc().plus({ days: 7 }).toJSDate())
     return password.toString('base64')
-}
-
-export async function auth(headers: FastifyRequest['headers'], storage: AuthStorage): Promise<string> {
-    const authHeader = headers.authorization
-    if (authHeader === undefined) {
-        throw httpErrors.forbidden()
-    }
-    const [userId, tempPassword] = authHeader.split(':')
-
-    return await verifyTempPassword(storage, userId, tempPassword)
 }
 
 function calcHash(password: string, salt: Uint8Array): Buffer {

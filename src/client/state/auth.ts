@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-import { AuthParam } from '../api/api.js'
+import { AuthParam } from '../rpc.js'
 import { cacheLastResult } from './cached.js'
 
 const AUTH_ID_KEY = 'AUTH_ID'

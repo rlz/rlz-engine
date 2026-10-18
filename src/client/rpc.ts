@@ -80,7 +80,7 @@ export async function rpcCall<BodyT extends object, RespT extends object>(
     bodyObject: BodyT
 ): Promise<RespT> {
     const authorization =
-        auth === null ? undefined : 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `${auth.userId}:${auth.tempPassword}`
+        auth === null ? undefined : 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `Bearer ${auth.userId}:${auth.tempPassword}`
 
     return request(url(rpcName, callName, version), authorization, bodyObject)
 }

@@ -1,7 +1,11 @@
 import { DateTime } from 'luxon'
 
-import { API_COMPARISON_OBJECT_SCHEMA_V0, ApiItemsResponseV0 } from '../shared/api/sync.js'
 import { toValidDateTime } from '../shared/utils/datetime.js'
+
+export interface SyncComparisonObject {
+    id: string
+    lastModified: string
+}
 
 export async function syncItems<T extends { id: string; lastModified: DateTime<true> }>({
     getRemoteLastModified,
@@ -11,7 +15,7 @@ export async function syncItems<T extends { id: string; lastModified: DateTime<t
     pushLocal,
     lastSyncDate
 }: {
-    getRemoteLastModified: () => Promise<ApiItemsResponseV0<typeof API_COMPARISON_OBJECT_SCHEMA_V0>>
+    getRemoteLastModified: () => Promise<{ items: readonly SyncComparisonObject[] }>
     localItems: readonly T[]
     pushRemote: (items: readonly T[]) => Promise<void>
     getRemote: (ids: readonly string[]) => Promise<T[]>

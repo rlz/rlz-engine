@@ -4,14 +4,26 @@ import { JSX, useCallback, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
-import { apiSignin, apiSignup } from '../api/auth.js'
 import { AuthState, useAuthState } from '../state/auth.js'
+
+export interface SignupSigninAuthClient {
+    signup: (name: string, email: string, password: string) => Promise<AuthResult>
+    signin: (name: string, password: string) => Promise<AuthResult>
+}
+
+interface AuthResult {
+    id: string
+    name: string
+    email: string
+    tempPassword: string
+}
 
 interface SignupSigninScreenProps {
     appName: string
+    authClient: SignupSigninAuthClient
 }
 
-export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.Element {
+export function SignupSigninScreen({ appName, authClient }: SignupSigninScreenProps): JSX.Element {
     const location = useLocation()
     const navigate = useNavigate()
     const tab = location.pathname.substring(1)
@@ -31,13 +43,13 @@ export function SignupSigninScreen({ appName }: SignupSigninScreenProps): JSX.El
                 <Tab value={'signin'} label={'Signin'} />
                 <Tab value={'signup'} label={'Signup'} />
             </Tabs>
-            {tab === 'signup' && <SignupForm />}
-            {tab === 'signin' && <SigninForm />}
+            {tab === 'signup' && <SignupForm authClient={authClient} />}
+            {tab === 'signin' && <SigninForm authClient={authClient} />}
         </Stack>
     )
 }
 
-function SignupForm() {
+function SignupForm({ authClient }: { authClient: SignupSigninAuthClient }) {
     const navigate = useNavigate()
     const login = useAuthState((i) => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
@@ -54,7 +66,7 @@ function SignupForm() {
         setSyncInProgress(true)
         setTimeout(async () => {
             try {
-                await signup(login, name, email, password, password2)
+                await signup(authClient, login, name, email, password, password2)
                 void navigate('/')
             } finally {
                 setSyncInProgress(false)
@@ -133,17 +145,24 @@ function SignupForm() {
     )
 }
 
-async function signup(login: AuthState['login'], name: string, email: string, password: string, password2: string) {
+async function signup(
+    authClient: SignupSigninAuthClient,
+    login: AuthState['login'],
+    name: string,
+    email: string,
+    password: string,
+    password2: string
+) {
     if (name === '' || !isValidEmail(email) || password === '' || password2 !== password) {
         return
     }
 
-    const resp = await apiSignup(name, email, password)
+    const resp = await authClient.signup(name, email, password)
 
     login(resp.id, resp.name, resp.email, resp.tempPassword)
 }
 
-function SigninForm() {
+function SigninForm({ authClient }: { authClient: SignupSigninAuthClient }) {
     const login = useAuthState((i) => i.login)
     const [syncInProgress, setSyncInProgress] = useState(false)
     const navigate = useNavigate()
@@ -154,7 +173,7 @@ function SigninForm() {
         setSyncInProgress(true)
         setTimeout(async () => {
             try {
-                await signin(login, name, password)
+                await signin(authClient, login, name, password)
                 void navigate('/')
             } finally {
                 setSyncInProgress(false)
@@ -197,8 +216,8 @@ function SigninForm() {
     )
 }
 
-async function signin(login: AuthState['login'], name: string, password: string) {
-    const resp = await apiSignin(name, password)
+async function signin(authClient: SignupSigninAuthClient, login: AuthState['login'], name: string, password: string) {
+    const resp = await authClient.signin(name, password)
     login(resp.id, resp.name, resp.email, resp.tempPassword)
 }
 
