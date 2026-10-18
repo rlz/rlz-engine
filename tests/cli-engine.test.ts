@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import z from 'zod'
 
 import { DevCliEngine } from '../src/back/cli/cli-engine.js'
-import { makeRpcClientCliModule } from '../src/back/cli/modules/rpc-client.js'
+import { RPC_MODULE } from '../src/back/rpc/module.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('development CLI', () => {
@@ -13,7 +13,7 @@ describe('development CLI', () => {
         const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-dev-cli-'))
         const userOutput = join(workingDirectory, 'generated', 'rpc-client.ts')
         const adminOutput = join(workingDirectory, 'generated', 'admin-rpc-client.ts')
-        const module = makeRpcClientCliModule({
+        const module = RPC_MODULE.makeDevCli({
             rpcBuilders: [
                 rpc('users').add({
                     name: 'list',

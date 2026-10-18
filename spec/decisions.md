@@ -60,7 +60,7 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Generated secrets avoid weak or reused human-selected passwords while remaining practical to type. Printing once keeps the plaintext out of persistent application storage; atomic replacement and restrictive permissions reduce exposure and avoid partially written credentials.
 
-**Implementation status:** The `adm reset-secret` command in `admCliModule` generates a 32-character secret from an alphabet that omits visually ambiguous characters. It stores a salted scrypt record at `./auth/admin-secret` using an exclusive temporary file, file sync, and atomic rename; the resulting file has mode `0600`. The plaintext is printed after the replacement succeeds. Applications invoke it through their composed `CliEngine`; the library does not provide a standalone executable. `verifyAdminSecret` loads and validates the record once per process and absolute path, then compares each derived hash in constant time. Missing and malformed files deny verification. The CLI writes the secret from a separate process, so a running server continues using its cached record until restart. `AdmRpcPluginBuilder` uses this verifier and supports an optional working directory for applications that do not use the process current directory.
+**Implementation status:** `AUTH_MODULE.makeCli()` provides `adm reset-secret`, which generates a 32-character secret from an alphabet that omits visually ambiguous characters. It stores a salted scrypt record at `./auth/admin-secret` using an exclusive temporary file, file sync, and atomic rename; the resulting file has mode `0600`. The plaintext is printed after the replacement succeeds. Applications invoke it through their composed `CliEngine`; the library does not provide a standalone executable. `verifyAdminSecret` loads and validates the record once per process and absolute path, then compares each derived hash in constant time. Missing and malformed files deny verification. The CLI writes the secret from a separate process, so a running server continues using its cached record until restart. `AdmRpcPluginBuilder` uses this verifier and supports an optional working directory for applications that do not use the process current directory.
 
 ## Provide an embeddable React administration UI
 
@@ -74,7 +74,7 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Keeping each capability's RPC, user interface, and command-line integration together makes library features easy to adopt while allowing applications to opt into only the parts they use. Independent facets avoid forcing a UI or command dependency on applications that only need an RPC capability.
 
-**Implementation status:** `src/back/logger/module.ts` exports `LOGGER_MODULE` with a `makeAdmRpc()` factory. Other existing feature integrations remain in shared `src/back/cli/modules/` files or direct builder modules and should be migrated to their feature directories. Application-level facet composition is not yet available.
+**Implementation status:** Feature module entry points are `src/back/auth/module.ts` (`AUTH_MODULE.makeCli()`), `src/back/http/module.ts` (`HTTP_MODULE.makeCli()`), `src/back/logger/module.ts` (`LOGGER_MODULE.makeAdmRpc()`), and `src/back/rpc/module.ts` (`RPC_MODULE.makeDevCli()`). Each keeps its integration factory with its feature implementation. Application-level facet composition is not yet available.
 
 ## Compose application CLI commands from modules
 
@@ -82,7 +82,7 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** The library cannot assume an application's domain, ports, static directory, or route registration. Passing these at composition time keeps configuration with the application while allowing library modules to supply reusable operational commands. `cmd-ts` provides typed argument decoding, nested subcommands, and help generated from command metadata without adding a second parser dependency. Namespace collisions, malformed command names, and missing descriptions are rejected during registration.
 
-**Implementation status:** `CliEngine` and `DevCliEngine` share command validation and help generation. `makeRpcClientCliModule()` writes user and administrative generated clients from supplied endpoint builders to application-selected paths. Applications keep that module in a development CLI entry point; `CliEngine` does not load or register it automatically, so production command setup remains explicit.
+**Implementation status:** `CliEngine` and `DevCliEngine` share command validation and help generation. `RPC_MODULE.makeDevCli()` writes user and administrative generated clients from supplied endpoint builders to application-selected paths. Applications keep that module in a development CLI entry point; `CliEngine` does not load or register it automatically, so production command setup remains explicit. `AUTH_MODULE.makeCli()` and `HTTP_MODULE.makeCli()` provide the operational admin-secret and HTTP-server commands.
 
 ## Improve testability as the library evolves
 

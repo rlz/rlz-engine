@@ -11,8 +11,8 @@ import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 
-import { initAuditLogger, type AuditLoggerConfig } from './logger/audit-logger.js'
-import { getSystemLogger } from './logger/system-logger.js'
+import { initAuditLogger, type AuditLoggerConfig } from '../logger/audit-logger.js'
+import { getSystemLogger } from '../logger/system-logger.js'
 
 const DEFAULT_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const DEFAULT_AUDIT_MAX_RECORDS = 100_000
