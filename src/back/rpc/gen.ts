@@ -53,7 +53,7 @@ function generateTypedClient<BuilderT extends { name: string }>(
             F.createImportDeclaration(
                 undefined,
                 F.createImportClause(
-                    false,
+                    undefined,
                     undefined,
                     F.createNamedImports(
                         options.importNames.map((name) => F.createImportSpecifier(false, undefined, F.createIdentifier(name)))
