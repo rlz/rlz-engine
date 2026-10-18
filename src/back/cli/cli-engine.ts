@@ -1,22 +1,26 @@
 import { command, run as runCommand, subcommands } from 'cmd-ts'
 
+/** One command leaf exposed under a CLI module namespace. */
 export interface CliCommand {
     readonly description: string
     readonly args?: Readonly<Record<string, any>>
     readonly handler: (args: Record<string, any>) => void | Promise<void>
 }
 
+/** A namespaced group of related commands, such as `http start`. */
 export interface CliModule {
     readonly name: string
     readonly description: string
     readonly commands: Readonly<Record<string, CliCommand>>
 }
 
+/** Builds and runs an application's operational command tree. */
 export class CliEngine {
     private readonly modules = new Map<string, CliModule>()
 
     constructor(private readonly binaryName = 'app.js') {}
 
+    /** Add a module; duplicate names and invalid command metadata are rejected. */
     register(module: CliModule): this {
         validateName(module.name, 'module')
         validateDescription(module.description, `module ${module.name}`)
@@ -37,6 +41,7 @@ export class CliEngine {
         return this
     }
 
+    /** Parse and execute arguments, defaulting to the current process arguments. */
     async run(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
         const modules = Object.fromEntries(
             [...this.modules].map(([name, module]) => [

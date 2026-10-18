@@ -119,6 +119,7 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
     }
 }
 
+/** Collects user RPC endpoints and creates the Fastify plugin that serves them. */
 export class RpcPluginBuilder<OptsT extends FastifyPluginOptions = never> {
     readonly name: string
     readonly endpoints: InnerRpcEndpoint<OptsT>[] = []
@@ -127,11 +128,13 @@ export class RpcPluginBuilder<OptsT extends FastifyPluginOptions = never> {
         this.name = name
     }
 
+    /** Add an endpoint; its name and version form part of the public route. */
     add<BodyT extends object, RespT extends object, UserT>(endpoint: RpcEndpoint<BodyT, RespT, OptsT, UserT>) {
         this.endpoints.push(makeReg(this.name, endpoint))
         return this
     }
 
+    /** Create a Fastify plugin that registers every endpoint currently in this builder. */
     makeFastifyPlugin() {
         const endpoints = this.endpoints
 
@@ -169,6 +172,7 @@ export interface AdmRpcEndpointInfo {
     respSchema: z.ZodType
 }
 
+/** Collects admin-secret-protected RPC endpoints, separate from user RPC. */
 export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions> {
     readonly name: string
     readonly endpoints: AdmRpcEndpoint<object, object, OptsT>[] = []
@@ -177,6 +181,7 @@ export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPlugi
         this.name = name
     }
 
+    /** Add an endpoint served under `/.adm/rpc/`. */
     add<BodyT extends object, RespT extends object>(endpoint: AdmRpcEndpoint<BodyT, RespT, OptsT>) {
         this.endpoints.push(endpoint as AdmRpcEndpoint<object, object, OptsT>)
         return this

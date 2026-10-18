@@ -1,0 +1,85 @@
+import type { FastifyInstance, FastifyPluginCallback, FastifyPluginOptions } from 'fastify'
+
+import { CliEngine, type CliModule, DevCliEngine } from '../cli/cli-engine.js'
+import type { AdmRpcPluginBuilder, RpcPluginBuilder } from '../rpc/rpc.js'
+
+/**
+ * Runtime facets returned by feature module factories. Applications create only
+ * the facets they need, then pass those values to `composeModules`.
+ */
+export interface ModuleFacets {
+    cli?: readonly CliModule[]
+    devCli?: readonly CliModule[]
+    rpc?: readonly RpcPluginBuilder[]
+    admRpc?: readonly AdmRpcPluginBuilder[]
+    rpcOptions?: Readonly<Record<string, FastifyPluginOptions>>
+    admRpcOptions?: Readonly<Record<string, FastifyPluginOptions>>
+}
+
+/**
+ * Combines selected feature facets into application startup operations.
+ * Factory invocation and deployment configuration remain in the application;
+ * this object only registers the resulting CLI modules and RPC plugins.
+ */
+export function composeModules(...facets: readonly ModuleFacets[]) {
+    const cliModules = facets.flatMap(({ cli = [] }) => cli)
+    const devCliModules = facets.flatMap(({ devCli = [] }) => devCli)
+    const rpcBuilders = facets.flatMap(({ rpc = [] }) => rpc)
+    const admRpcBuilders = facets.flatMap(({ admRpc = [] }) => admRpc)
+    const rpcOptions = Object.assign({}, ...facets.map(({ rpcOptions = {} }) => rpcOptions))
+    const admRpcOptions = Object.assign({}, ...facets.map(({ admRpcOptions = {} }) => admRpcOptions))
+
+    assertUniqueNames(
+        cliModules.map(({ name }) => name),
+        'CLI module'
+    )
+    assertUniqueNames(
+        devCliModules.map(({ name }) => name),
+        'development CLI module'
+    )
+    assertUniqueNames(
+        rpcBuilders.map(({ name }) => name),
+        'RPC plugin'
+    )
+    assertUniqueNames(
+        admRpcBuilders.map(({ name }) => name),
+        'administrative RPC plugin'
+    )
+
+    return {
+        /** Register the selected operational commands with the application's CLI. */
+        registerCli(engine: CliEngine): CliEngine {
+            for (const module of cliModules) engine.register(module)
+            return engine
+        },
+
+        /** Register development-only commands with a separate CLI entry point. */
+        registerDevCli(engine: DevCliEngine): DevCliEngine {
+            for (const module of devCliModules) engine.register(module)
+            return engine
+        },
+
+        /** Register user-authenticated and anonymous RPC plugins on a Fastify server. */
+        async registerRpc(server: FastifyInstance): Promise<void> {
+            for (const builder of rpcBuilders) {
+                // RPC builders with no options use `never`; Fastify's register overload expects its default options type.
+                await server.register(builder.makeFastifyPlugin() as unknown as FastifyPluginCallback, rpcOptions[builder.name])
+            }
+        },
+
+        /** Register admin-secret-protected RPC plugins on a Fastify server. */
+        async registerAdmRpc(server: FastifyInstance): Promise<void> {
+            for (const builder of admRpcBuilders) {
+                await server.register(builder.makeFastifyPlugin() as unknown as FastifyPluginCallback, admRpcOptions[builder.name])
+            }
+        }
+    }
+}
+
+function assertUniqueNames(names: readonly string[], kind: string): void {
+    const seen = new Set<string>()
+    for (const name of names) {
+        if (seen.has(name)) throw new Error(`${kind} already composed: ${name}`)
+        seen.add(name)
+    }
+}

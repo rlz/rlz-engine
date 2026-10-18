@@ -27,7 +27,7 @@ import { syncItems } from 'rlz-engine/client/sync.js'
 
 ## Feature modules
 
-Each backend feature module exposes an uppercase object from its `module.js` entry point. Applications call only the facets they need and register the returned objects with their own server or CLI setup.
+Each backend feature lives in a cohesive directory and exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. The object contains only the integration factories that feature supports. Applications invoke the factories for the integrations they want, then pass the returned facet values to `composeModules()`.
 
 | Module          | Facets                      | Purpose                                                         |
 | --------------- | --------------------------- | --------------------------------------------------------------- |
@@ -36,7 +36,7 @@ Each backend feature module exposes an uppercase object from its `module.js` ent
 | `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()` | Audit-log reader command and protected audit query endpoint     |
 | `RPC_MODULE`    | `makeDevCli(options)`       | Generate user and administrative RPC clients during development |
 
-The library does not currently include the planned React administration UI or a certificate-status administration module. The administrative RPC transport and audit-log endpoint are available independently.
+The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI and certificate-status module remain planned; the administrative RPC transport and audit-log endpoint are available now.
 
 ### CLI composition
 
@@ -44,30 +44,42 @@ The library does not currently include the planned React administration UI or a 
 
 ```ts
 import { CliEngine, DevCliEngine } from 'rlz-engine/back/cli/cli-engine.js'
+import { composeModules } from 'rlz-engine/back/module/composer.js'
 import { AUTH_MODULE } from 'rlz-engine/back/auth/module.js'
 import { HTTP_MODULE } from 'rlz-engine/back/http/module.js'
 import { LOGGER_MODULE } from 'rlz-engine/back/logger/module.js'
 import { RPC_MODULE } from 'rlz-engine/back/rpc/module.js'
 
-const cli = new CliEngine('app.js')
-    .register(AUTH_MODULE.makeCli())
-    .register(HTTP_MODULE.makeCli(serverParams, initializeRoutes))
-    .register(LOGGER_MODULE.makeCli())
+const applicationModules = composeModules({
+    cli: [AUTH_MODULE.makeCli(), HTTP_MODULE.makeCli(serverParams, initializeRoutes), LOGGER_MODULE.makeCli()],
+    rpc: userRpcPlugins,
+    admRpc: [LOGGER_MODULE.makeAdmRpc()]
+})
 
+const cli = applicationModules.registerCli(new CliEngine('app.js'))
 await cli.run()
 
-const devCli = new DevCliEngine('dev.js').register(
-    RPC_MODULE.makeDevCli({
-        rpcBuilders: userRpcPlugins,
-        admRpcBuilders: adminRpcPlugins,
-        rpcOutput: './src/client/generated/rpc-client.ts',
-        admRpcOutput: './src/client/generated/admin-rpc-client.ts'
-    })
-)
+async function initializeRoutes(server) {
+    await applicationModules.registerRpc(server)
+    await applicationModules.registerAdmRpc(server)
+    // Register application-owned routes and plugins here.
+}
+
+const devModules = composeModules({
+    devCli: [
+        RPC_MODULE.makeDevCli({
+            rpcBuilders: userRpcPlugins,
+            admRpcBuilders: adminRpcPlugins,
+            rpcOutput: './src/client/generated/rpc-client.ts',
+            admRpcOutput: './src/client/generated/admin-rpc-client.ts'
+        })
+    ]
+})
+const devCli = devModules.registerDevCli(new DevCliEngine('dev.js'))
 await devCli.run()
 ```
 
-Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show the command tree at progressively narrower levels. Operational and development commands are registered separately so client generation does not need to be included in production command setup.
+`composeModules()` accepts any combination of `cli`, `devCli`, `rpc`, and `admRpc` arrays; omit facets the application does not use. For RPC builders that need Fastify plugin options, provide `rpcOptions` or `admRpcOptions`, keyed by each builder's `name` (for example, `{ audit: { workingDirectory: appDirectory } }`). The returned object has `registerCli()`, `registerDevCli()`, `registerRpc()`, and `registerAdmRpc()` methods. RPC registration methods are asynchronous and register plugins in array order. Duplicate module or plugin names within the same category throw during composition. Operational and development commands remain separate so client generation does not need to be included in production command setup. Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show progressively narrower command help.
 
 `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
 

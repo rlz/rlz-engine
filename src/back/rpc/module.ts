@@ -5,6 +5,7 @@ import { CliModule } from '../cli/cli-engine.js'
 import { generateAdmClient, generateClient } from './gen.js'
 import { AdmRpcPluginBuilder, RpcPluginBuilder } from './rpc.js'
 
+/** Builders and output paths consumed by `RPC_MODULE.makeDevCli()`. */
 export interface RpcClientCliModuleOptions {
     rpcBuilders?: readonly RpcPluginBuilder[]
     admRpcBuilders?: readonly AdmRpcPluginBuilder[]
@@ -12,7 +13,9 @@ export interface RpcClientCliModuleOptions {
     admRpcOutput?: string
 }
 
+/** Development integration for generating typed clients from endpoint builders. */
 export const RPC_MODULE = {
+    /** Create the development-only `rpc generate-client` command. */
     makeDevCli(options: RpcClientCliModuleOptions): CliModule {
         const rpcBuilders = options.rpcBuilders ?? []
         const admRpcBuilders = options.admRpcBuilders ?? []

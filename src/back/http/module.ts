@@ -3,7 +3,9 @@ import { flag } from 'cmd-ts'
 import { InitServerFuncType, RunServerParams, runServer } from './server.js'
 import { CliModule } from '../cli/cli-engine.js'
 
+/** Fastify lifecycle feature; applications provide deployment settings and route setup. */
 export const HTTP_MODULE = {
+    /** Create the `http start` command using application-owned server configuration. */
     makeCli(params: Omit<RunServerParams, 'init'> | (() => Omit<RunServerParams, 'init'>), init: InitServerFuncType): CliModule {
         return {
             name: 'http',

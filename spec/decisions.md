@@ -74,7 +74,7 @@ These are decisions evidenced by the current implementation. Add or revise entri
 
 **Reason:** Keeping each capability's RPC, user interface, and command-line integration together makes library features easy to adopt while allowing applications to opt into only the parts they use. Independent facets avoid forcing a UI or command dependency on applications that only need an RPC capability.
 
-**Implementation status:** Feature module entry points are `src/back/auth/module.ts` (`AUTH_MODULE.makeCli()`), `src/back/http/module.ts` (`HTTP_MODULE.makeCli()`), `src/back/logger/module.ts` (`LOGGER_MODULE.makeAdmRpc()`), and `src/back/rpc/module.ts` (`RPC_MODULE.makeDevCli()`). Each keeps its integration factory with its feature implementation. Application-level facet composition is not yet available.
+**Implementation status:** Feature module entry points are `src/back/auth/module.ts` (`AUTH_MODULE.makeCli()`), `src/back/http/module.ts` (`HTTP_MODULE.makeCli()`), `src/back/logger/module.ts` (`LOGGER_MODULE.makeCli()` and `makeAdmRpc()`), and `src/back/rpc/module.ts` (`RPC_MODULE.makeDevCli()`). Each keeps its integration factory with its feature implementation. `composeModules()` in `src/back/module/composer.ts` combines selected runtime CLI and RPC artifacts, registers them in input order, and rejects duplicate names in each category. Factory invocation and app-specific settings remain the application's responsibility. Administration UI composition is not implemented.
 
 ## Compose application CLI commands from modules
 
