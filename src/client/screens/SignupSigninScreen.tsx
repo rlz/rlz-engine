@@ -1,6 +1,6 @@
 import { Box, Button, CircularProgress, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import React from 'react'
-import { JSX, useCallback, useState } from 'react'
+import { JSX, useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
@@ -9,13 +9,14 @@ import { AuthState, useAuthState } from '../state/auth.js'
 export interface SignupSigninAuthClient {
     signup: (name: string, email: string, password: string) => Promise<AuthResult>
     signin: (name: string, password: string) => Promise<AuthResult>
+    session: () => Promise<AuthResult>
 }
 
 interface AuthResult {
     id: string
     name: string
     email: string
-    tempPassword: string
+    csrfToken: string
 }
 
 interface SignupSigninScreenProps {
@@ -26,7 +27,23 @@ interface SignupSigninScreenProps {
 export function SignupSigninScreen({ appName, authClient }: SignupSigninScreenProps): JSX.Element {
     const location = useLocation()
     const navigate = useNavigate()
+    const login = useAuthState((state) => state.login)
     const tab = location.pathname.substring(1)
+
+    useEffect(() => {
+        let active = true
+        void authClient
+            .session()
+            .then((session) => {
+                if (!active) return
+                login(session.id, session.name, session.email, session.csrfToken)
+                void navigate('/')
+            })
+            .catch(() => {})
+        return () => {
+            active = false
+        }
+    }, [authClient, login, navigate])
 
     return (
         <Stack sx={{ p: 1, gap: 1, maxWidth: '500px', mx: 'auto', mt: 10 }}>
@@ -159,7 +176,7 @@ async function signup(
 
     const resp = await authClient.signup(name, email, password)
 
-    login(resp.id, resp.name, resp.email, resp.tempPassword)
+    login(resp.id, resp.name, resp.email, resp.csrfToken)
 }
 
 function SigninForm({ authClient }: { authClient: SignupSigninAuthClient }) {
@@ -218,7 +235,7 @@ function SigninForm({ authClient }: { authClient: SignupSigninAuthClient }) {
 
 async function signin(authClient: SignupSigninAuthClient, login: AuthState['login'], name: string, password: string) {
     const resp = await authClient.signin(name, password)
-    login(resp.id, resp.name, resp.email, resp.tempPassword)
+    login(resp.id, resp.name, resp.email, resp.csrfToken)
 }
 
 function isValidEmail(s: string): boolean {

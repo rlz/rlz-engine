@@ -6,11 +6,15 @@ export interface StorageUser {
     email: string
     passwordSalt: Binary
     passwordHash: Binary
+    passwordHashVersion?: number
     lastActivityDate: Date
 }
 
-export interface StorageTempPassword {
+export interface StorageSession {
     userId: string
-    passwordHash: Binary
-    validUntil: Date
+    sessionHash: Binary
+    csrfToken: string
+    createdAt: Date
+    lastActivityAt: Date
+    expiresAt: Date
 }

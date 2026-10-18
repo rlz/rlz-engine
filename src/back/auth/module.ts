@@ -2,22 +2,46 @@ import { httpErrors } from '@fastify/sensible'
 import { resolve } from 'node:path'
 
 import { resetAdminSecret } from './admin-secret.js'
+import { clearSessionCookie, setSessionCookie } from './cookies.js'
+import { assertSameOrigin } from './csrf.js'
+import {
+    authenticateSession,
+    createSession,
+    revokeCurrentSession,
+    SESSION_ABSOLUTE_TIMEOUT_MS,
+    SESSION_IDLE_TIMEOUT_MS,
+    verifySessionCsrf
+} from './session.js'
 import { CliModule } from '../cli/cli-engine.js'
 import { RpcPluginBuilder, rpc } from '../rpc/rpc.js'
 import { AuthStorage } from './storage.js'
-import { logout, signin, signup, verifyTempPassword } from './utils.js'
+import { signin, signup } from './utils.js'
 import { z } from 'zod'
 
-const AUTH_RESPONSE_SCHEMA = z.object({ id: z.uuid(), name: z.string(), email: z.email(), tempPassword: z.string() })
+const AUTH_RESPONSE_SCHEMA = z.object({ id: z.uuid(), name: z.string(), email: z.email(), csrfToken: z.string() })
 const SIGNUP_REQUEST_SCHEMA = z.object({ name: z.string(), email: z.email(), password: z.string() })
 const SIGNIN_REQUEST_SCHEMA = z.object({ name: z.string(), password: z.string() })
 const EMPTY_REQUEST_SCHEMA = z.object({})
 const EMPTY_RESPONSE_SCHEMA = z.object({})
 
+export interface AuthRpcOptions {
+    /** Maximum time without an authenticated request before a session expires. Defaults to 30 minutes. */
+    sessionIdleTimeoutMs?: number
+}
+
 /** Authentication RPC and administrative maintenance integrations. */
 export const AUTH_MODULE = {
-    /** Create anonymous signup/signin and authenticated logout RPC endpoints. */
-    makeRpc(storage: AuthStorage): RpcPluginBuilder {
+    /** Create signup/signin, session restoration, and cookie-authenticated logout RPC endpoints. */
+    makeRpc(storage: AuthStorage, options: AuthRpcOptions = {}): RpcPluginBuilder {
+        const sessionIdleTimeoutMs = options.sessionIdleTimeoutMs ?? SESSION_IDLE_TIMEOUT_MS
+        if (
+            !Number.isSafeInteger(sessionIdleTimeoutMs) ||
+            sessionIdleTimeoutMs <= 0 ||
+            sessionIdleTimeoutMs > SESSION_ABSOLUTE_TIMEOUT_MS
+        ) {
+            throw new RangeError(`sessionIdleTimeoutMs must be a positive integer no greater than ${SESSION_ABSOLUTE_TIMEOUT_MS}`)
+        }
+
         return rpc('auth')
             .add({
                 v: 1,
@@ -25,7 +49,13 @@ export const AUTH_MODULE = {
                 anonimous: true,
                 bodySchema: SIGNUP_REQUEST_SCHEMA,
                 respSchema: AUTH_RESPONSE_SCHEMA,
-                action: (body) => signup(storage, body.name, body.email, body.password)
+                action: async (body, _opts, context) => {
+                    assertSameOrigin(context.request)
+                    const user = await signup(storage, body.name, body.email, body.password)
+                    const session = await createSession(storage, user.id)
+                    setSessionCookie(context.reply, session.sessionId)
+                    return { ...user, csrfToken: session.csrfToken }
+                }
             })
             .add({
                 v: 1,
@@ -33,23 +63,42 @@ export const AUTH_MODULE = {
                 anonimous: true,
                 bodySchema: SIGNIN_REQUEST_SCHEMA,
                 respSchema: AUTH_RESPONSE_SCHEMA,
-                action: async (body) => {
+                action: async (body, _opts, context) => {
+                    assertSameOrigin(context.request)
                     const response = await signin(storage, body.name, body.password)
                     if (response === null) throw httpErrors.unauthorized()
-                    return response
+                    await revokeCurrentSession(storage, context)
+                    const session = await createSession(storage, response.id)
+                    setSessionCookie(context.reply, session.sessionId)
+                    return { ...response, csrfToken: session.csrfToken }
                 }
+            })
+            .add({
+                v: 1,
+                name: 'session',
+                bodySchema: EMPTY_REQUEST_SCHEMA,
+                respSchema: AUTH_RESPONSE_SCHEMA,
+                cookieAuth: {
+                    authenticate: (context) => authenticateSession(storage, context, sessionIdleTimeoutMs),
+                    verifyCsrf: async (context, session) => {
+                        assertSameOrigin(context.request)
+                        await storage.touchSession(session.sessionHash, new Date())
+                    }
+                },
+                action: (session) => ({ ...session.user, csrfToken: session.csrfToken })
             })
             .add({
                 v: 1,
                 name: 'logout',
                 bodySchema: EMPTY_REQUEST_SCHEMA,
                 respSchema: EMPTY_RESPONSE_SCHEMA,
-                auth: async (userId, password) => {
-                    await verifyTempPassword(storage, userId, password)
-                    return { userId, password }
+                cookieAuth: {
+                    authenticate: (context) => authenticateSession(storage, context, sessionIdleTimeoutMs),
+                    verifyCsrf: (context, session) => verifySessionCsrf(storage, context, session)
                 },
-                action: async ({ userId, password }) => {
-                    await logout(storage, userId, password)
+                action: async (session, _body, _opts, context) => {
+                    await storage.deleteSession(session.sessionHash)
+                    clearSessionCookie(context.reply)
                     return {}
                 }
             })

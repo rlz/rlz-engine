@@ -1,95 +1,85 @@
 import { httpErrors } from '@fastify/sensible'
-import { randomBytes, scryptSync } from 'crypto'
-import { DateTime } from 'luxon'
+import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
 
-import { AuthStorage } from './storage.js'
+import type { AuthStorage } from './storage.js'
+import type { StorageUser } from './model.js'
 
-export interface AuthResponse {
+const PASSWORD_HASH_VERSION = 1
+const PASSWORD_HASH_BYTES = 64
+const LEGACY_SCRYPT_OPTIONS = { N: 1024, r: 8, p: 1, maxmem: 32 * 1024 * 1024 }
+const CURRENT_SCRYPT_OPTIONS = { N: 32_768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }
+const DUMMY_SALT = Buffer.alloc(64, 0x5a)
+
+export interface AuthUser {
     id: string
     name: string
     email: string
-    tempPassword: string
 }
 
-const TEMP_PASSWORD_SALT = Buffer.from('cashmony-temp-password-salt', 'utf8')
-
-export async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<AuthResponse> {
+export async function signup(storage: AuthStorage, name: string, email: string, password: string): Promise<AuthUser> {
     const salt = randomBytes(64)
-    const hash = calcHash(password, salt)
+    const hash = await derivePasswordHash(password, salt, CURRENT_SCRYPT_OPTIONS)
     const id = uuidv7()
     try {
-        await storage.createUser(id, name, email, new Binary(salt), new Binary(hash))
+        await storage.createUser(id, name, email, new Binary(salt), new Binary(hash), PASSWORD_HASH_VERSION)
     } catch (e) {
         if (e instanceof MongoServerError && e.code === 11000) {
-            // duplicate key error
             throw httpErrors.conflict()
         }
         throw e
     }
-    const tempPassword = await makeTempPassword(storage, id)
-    return {
-        id,
-        name,
-        email,
-        tempPassword
-    }
+
+    return { id, name, email }
 }
 
-export async function signin(storage: AuthStorage, name: string, password: string): Promise<AuthResponse | null> {
-    const u = await storage.getUser(name)
-    if (u === null) {
+export async function signin(storage: AuthStorage, name: string, password: string): Promise<AuthUser | null> {
+    const user = await storage.getUser(name)
+    if (user === null) {
+        await derivePasswordHash(password, DUMMY_SALT, CURRENT_SCRYPT_OPTIONS)
         return null
     }
 
-    const hash = calcHash(password, u.passwordSalt.value())
+    if (user.passwordHashVersion === undefined) {
+        const legacyHash = await derivePasswordHash(password, user.passwordSalt.value(), LEGACY_SCRYPT_OPTIONS, 512)
+        if (!hashMatches(legacyHash, user.passwordHash.value())) {
+            await derivePasswordHash(password, DUMMY_SALT, CURRENT_SCRYPT_OPTIONS)
+            return null
+        }
 
-    if (!hash.equals(u.passwordHash.value())) {
+        const salt = randomBytes(64)
+        const upgradedHash = await derivePasswordHash(password, salt, CURRENT_SCRYPT_OPTIONS)
+        await storage.updateLegacyPasswordHash(user._id, user.passwordSalt, user.passwordHash, new Binary(salt), new Binary(upgradedHash))
+    } else if (user.passwordHashVersion === PASSWORD_HASH_VERSION) {
+        const hash = await derivePasswordHash(password, user.passwordSalt.value(), CURRENT_SCRYPT_OPTIONS)
+        if (!hashMatches(hash, user.passwordHash.value())) return null
+    } else {
         return null
     }
 
-    const tempPassword = await makeTempPassword(storage, u._id)
-
-    await storage.markUserActive(u._id)
-
-    return {
-        id: u._id,
-        name: u.name,
-        email: u.email,
-        tempPassword
-    }
+    await storage.markUserActive(user._id)
+    return toAuthUser(user)
 }
 
-export async function logout(storage: AuthStorage, userId: string, tempPassword: string) {
-    const hash = calcTempPasswordHash(Buffer.from(tempPassword, 'base64'))
-    await storage.deleteTempPassword(userId, new Binary(hash))
+export function toAuthUser(user: Pick<StorageUser, '_id' | 'name' | 'email'>): AuthUser {
+    return { id: user._id, name: user.name, email: user.email }
 }
 
-export async function verifyTempPassword(storage: AuthStorage, userId: string, tempPassword: string): Promise<string> {
-    const hash = calcTempPasswordHash(Buffer.from(tempPassword, 'base64'))
-    const u = await storage.getUserByTempPassword(userId, new Binary(hash))
-    if (u === null) {
-        throw httpErrors.forbidden()
-    }
-
-    await storage.markUserActive(u._id)
-
-    return u._id
+async function derivePasswordHash(
+    password: string,
+    salt: Uint8Array,
+    options: typeof LEGACY_SCRYPT_OPTIONS | typeof CURRENT_SCRYPT_OPTIONS,
+    keyLength = PASSWORD_HASH_BYTES
+): Promise<Buffer> {
+    return await new Promise<Buffer>((resolve, reject) => {
+        scryptCallback(password, salt, keyLength, options, (error, derivedKey) => {
+            if (error !== null) reject(error)
+            else resolve(derivedKey)
+        })
+    })
 }
 
-async function makeTempPassword(storage: AuthStorage, userId: string): Promise<string> {
-    const password = randomBytes(128)
-    const passwordHash = calcTempPasswordHash(password)
-    // Temp passwords also are removed from Mongo by TTL index, make sure expirity dates are syncronised
-    await storage.pushTempPassword(userId, new Binary(passwordHash), DateTime.utc().plus({ days: 7 }).toJSDate())
-    return password.toString('base64')
-}
-
-function calcHash(password: string, salt: Uint8Array): Buffer {
-    return scryptSync(password, salt, 512, { N: 1024 })
-}
-
-function calcTempPasswordHash(tempPassword: Uint8Array): Buffer {
-    return scryptSync(tempPassword, TEMP_PASSWORD_SALT, 512, { N: 1024 })
+function hashMatches(actual: Uint8Array, expected: Uint8Array): boolean {
+    return actual.length === expected.length && timingSafeEqual(actual, expected)
 }

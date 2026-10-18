@@ -29,12 +29,12 @@ import { syncItems } from 'rlz-engine/client/sync.js'
 
 Each backend feature lives in a cohesive directory and exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. The object contains only the integration factories that feature supports. Applications invoke the factories for the integrations they want, then pass the returned facet values to `composeModules()`.
 
-| Module          | Facets                          | Purpose                                                         |
-| --------------- | ------------------------------- | --------------------------------------------------------------- |
-| `AUTH_MODULE`   | `makeRpc(storage)`, `makeCli()` | Signup/signin/logout RPC endpoints and admin secret command     |
-| `HTTP_MODULE`   | `makeCli(params, init)`         | `http start` server command                                     |
-| `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()`     | Audit-log reader command and protected audit query endpoint     |
-| `RPC_MODULE`    | `makeDevCli(options)`           | Generate user and administrative RPC clients during development |
+| Module          | Facets                                    | Purpose                                                             |
+| --------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| `AUTH_MODULE`   | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
+| `HTTP_MODULE`   | `makeCli(params, init)`                   | `http start` server command                                         |
+| `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()`               | Audit-log reader command and protected audit query endpoint         |
+| `RPC_MODULE`    | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
 
 The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI and certificate-status module remain planned; the administrative RPC transport and audit-log endpoint are available now.
 
@@ -81,7 +81,7 @@ await devCli.run()
 
 `composeModules()` accepts any combination of `cli`, `devCli`, `rpc`, and `admRpc` arrays; omit facets the application does not use. For RPC builders that need Fastify plugin options, provide `rpcOptions` or `admRpcOptions`, keyed by each builder's `name` (for example, `{ audit: { workingDirectory: appDirectory } }`). The returned object has `registerCli()`, `registerDevCli()`, `registerRpc()`, and `registerAdmRpc()` methods. RPC registration methods are asynchronous and register plugins in array order. Duplicate module or plugin names within the same category throw during composition. Operational and development commands remain separate so client generation does not need to be included in production command setup. Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show progressively narrower command help.
 
-`AUTH_MODULE.makeRpc(storage)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
+`AUTH_MODULE.makeRpc(storage, options?)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
 
 ## HTTP server
 
@@ -101,25 +101,31 @@ await runServer({
 })
 ```
 
-`domain`, `certDir`, `staticDir`, and `init` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, and `acmeProvider`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
+`domain`, `certDir`, `staticDir`, and `init` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, and `acmeProvider`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
 
 By default, non-debug production writes audit logs to `logs.sqlite`. Development and debug mode use colored console output. Set `auditSqlite: true` (or pass `--audit-sqlite` to `http start`) to write SQLite records alongside console output. Retention defaults to 30 days and the maximum record count defaults to 100,000.
 
 ## RPC endpoints and generated clients
 
-Define user RPC plugins with `rpc()` and administrative plugins with `admRpc()`. Every endpoint has a version, a name, Zod body and response schemas, and an action. User endpoints may be anonymous or provide an `auth` callback.
+Define user RPC plugins with `rpc()` and administrative plugins with `admRpc()`. Every endpoint has a version, a name, Zod body and response schemas, and an action. User endpoints may be anonymous or use a `cookieAuth` policy with both `authenticate` and `verifyCsrf` callbacks. The cookie-auth callbacks receive request cookies/headers and safe reply cookie methods via `RpcRequestContext`.
 
 ```ts
 import z from 'zod'
 import { rpc, admRpc } from 'rlz-engine/back/rpc/rpc.js'
+import { authenticateSession, SESSION_IDLE_TIMEOUT_MS, verifySessionCsrf } from 'rlz-engine/back/auth/session.js'
+
+// Assume storage is an initialized AuthStorage instance.
 
 export const userRpc = rpc('users').add({
     name: 'get-profile',
     v: 1,
     bodySchema: z.object({}),
     respSchema: z.object({ name: z.string() }),
-    auth: async (userId, password) => authenticate(userId, password),
-    action: async (user) => ({ name: user.name })
+    cookieAuth: {
+        authenticate: (context) => authenticateSession(storage, context, SESSION_IDLE_TIMEOUT_MS),
+        verifyCsrf: (context, session) => verifySessionCsrf(storage, context, session)
+    },
+    action: (session) => ({ name: session.user.name })
 })
 
 export const adminRpc = admRpc('operations').add({
@@ -138,7 +144,9 @@ await server.register(userRpc.makeFastifyPlugin())
 await server.register(adminRpc.makeFastifyPlugin())
 ```
 
-User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated routes accept `Authorization: Bearer <userId:password>`. The endpoint's `auth` callback validates credentials and returns the user value passed to `action`.
+User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated user routes use cookie sessions and require both a session authenticator and a CSRF verifier.
+
+Cookie-auth endpoints use the same route and receive a generated client method with no credential parameter. Their `authenticate` callback reads the session cookie; `verifyCsrf` must validate the request before the action runs. `runServer()` registers `@fastify/cookie` before application routes. `back/auth/cookies.js` exports session-cookie helpers; they always use `HttpOnly`, `Secure`, `SameSite=Lax`, and `Path=/` without a `Domain`. The caller can set only the cookie lifetime. `back/auth/csrf.js` provides 32-byte CSRF token generation, constant-time token comparison, and same-origin validation.
 
 Administrative endpoints are served at `/.adm/rpc/<plugin>_<endpoint>_v<version>` and accept only `Authorization: Bearer <admin-secret>`. The secret is checked against the salted scrypt hash in `./auth/admin-secret` relative to the process working directory. Use the operational `adm reset-secret` command to create or replace it; the generated plaintext is printed once. The server caches the hash per process and path, so restart a running server after resetting the secret.
 
@@ -146,22 +154,23 @@ Administrative endpoints are served at `/.adm/rpc/<plugin>_<endpoint>_v<version>
 
 ### RPC transport
 
-`client/rpc.js` exports `rpcCall()`, `admRpcCall()`, auth parameter types, and `HttpError`, `Unauthorized`, `Forbidden`, and `NotFound` errors. Requests and responses are JSON. Request bodies larger than 16 KiB are gzip-compressed. User auth uses a Bearer-wrapped credential pair; admin auth is a separate secret-only Bearer contract. Configure the RPC base URL with `initFrontConfig({ apiDomain })` from `client/config.js`; the default is `/` in production and `http://localhost:8080/` otherwise.
+`client/rpc.js` exports `rpcCall()`, `admRpcCall()`, `AdmAuthParam`, and `HttpError`, `Unauthorized`, `Forbidden`, and `NotFound` errors. Requests and responses are JSON. Request bodies larger than 16 KiB are gzip-compressed. User RPC uses same-origin cookie credentials and attaches the CSRF token held in client memory. Admin RPC uses a separate secret-only Bearer contract. `initFrontConfig()` configures the RPC base URL, which defaults to `/` in production and `http://localhost:8080/` otherwise.
 
 ## Authentication RPC
 
-`back/auth` contains `AuthStorage`, user signup/signin/logout and credential verification helpers, plus the administrative-secret implementation. `AUTH_MODULE.makeRpc(storage)` provides anonymous `signup` and `signin` endpoints and an authenticated `logout` endpoint under `/rpc/auth_*_v1`. Register this builder with `composeModules()` like other RPC feature modules. Signup and signin preserve the existing response fields and validation, and invalid credentials return 401.
+`back/auth` contains `AuthStorage`, signup/signin helpers, opaque server-side sessions, and the administrative-secret implementation. `AUTH_MODULE.makeRpc(storage, options?)` provides `signup`, `signin`, `session`, and CSRF-protected `logout` endpoints under `/rpc/auth_*_v1`. Set `options.sessionIdleTimeoutMs` to configure the idle timeout; it defaults to 30 minutes and must be a positive integer no greater than the fixed seven-day absolute timeout. Signup and signin set an HttpOnly session cookie and return the user profile plus a CSRF token. `session` restores the profile and token from the cookie. Session IDs are random, only their SHA-256 hashes are stored, and logout revokes the current session. Auth endpoints require a matching same-origin `Origin` header. Register the builder with `composeModules()` like other RPC feature modules.
 
 `SignupSigninScreen` accepts an `authClient` adapter. Pass callbacks backed by the application's generated `RPC_CLIENT.auth.signup()` and `RPC_CLIENT.auth.signin()` methods:
 
 ```ts
 const authClient = {
     signup: (name, email, password) => RPC_CLIENT.auth.signup({ name, email, password }),
-    signin: (name, password) => RPC_CLIENT.auth.signin({ name, password })
+    signin: (name, password) => RPC_CLIENT.auth.signin({ name, password }),
+    session: () => RPC_CLIENT.auth.session({})
 }
 ```
 
-Login state is available through `useAuthState` in `client/state/auth.js` and is persisted with Zustand. The `/api/...` routes and `apiCall()` transport have been removed; RPC is the only supported application protocol.
+Login profile state is available through `useAuthState` in `client/state/auth.js` and is persisted with Zustand. The CSRF token is kept only in memory; call the generated `auth.session()` endpoint on app startup to restore it from the server session before making protected RPC calls. `SignupSigninScreen` performs this restoration when mounted. Existing local profile data does not authenticate a user, and the old temporary-password field is discarded during state migration. Existing passwords remain valid: legacy scrypt hashes are verified with their original parameters and upgraded to hash version 1 on successful signin. New hashes use scrypt with `N=32768`, `r=8`, and `p=3`. The `/api/...` routes and `apiCall()` transport have been removed; RPC is the only supported application protocol.
 
 ## Logging and audit records
 
@@ -210,5 +219,7 @@ npm install
 npm run build
 npm test
 ```
+
+Auth storage integration tests can run against a local MongoDB by setting `MONGODB_TEST_URI`, for example `MONGODB_TEST_URI=mongodb://127.0.0.1:27017 npm test -- --run tests/auth-storage.integration.test.ts`. They create and drop a uniquely named test database.
 
 The package uses TypeScript, Vitest, ESLint, and Prettier. Read `spec/` before changing behavior, keep it current when a design or contract changes, and track accepted future work in `todo.md`.

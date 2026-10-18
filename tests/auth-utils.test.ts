@@ -1,9 +1,9 @@
+import { scryptSync, randomBytes } from 'node:crypto'
 import { Binary, MongoServerError } from 'mongodb'
-import { DateTime } from 'luxon'
 import { describe, expect, it, vi } from 'vitest'
 
-import { logout, signin, signup, verifyTempPassword } from '../src/back/auth/utils.js'
 import type { AuthStorage } from '../src/back/auth/storage.js'
+import { signin, signup } from '../src/back/auth/utils.js'
 
 interface FakeUser {
     _id: string
@@ -11,49 +11,50 @@ interface FakeUser {
     email: string
     passwordSalt: Binary
     passwordHash: Binary
+    passwordHashVersion?: number
 }
 
 function makeAuthStorage() {
     const users: FakeUser[] = []
-    const tempPasswords: { userId: string; passwordHash: Binary; validUntil: Date }[] = []
     const storage = {
-        createUser: vi.fn(async (id: string, name: string, email: string, passwordSalt: Binary, passwordHash: Binary) => {
-            users.push({ _id: id, name, email, passwordSalt, passwordHash })
-        }),
+        createUser: vi.fn(
+            async (id: string, name: string, email: string, passwordSalt: Binary, passwordHash: Binary, passwordHashVersion: number) => {
+                users.push({ _id: id, name, email, passwordSalt, passwordHash, passwordHashVersion })
+            }
+        ),
         getUser: vi.fn(async (name: string) => users.find((user) => user.name === name) ?? null),
         markUserActive: vi.fn(),
-        pushTempPassword: vi.fn(async (userId: string, passwordHash: Binary, validUntil: Date) => {
-            tempPasswords.push({ userId, passwordHash, validUntil })
-        }),
-        getUserByTempPassword: vi.fn(async (userId: string, passwordHash: Binary) => {
-            const stored = tempPasswords.find(
-                (item) => item.userId === userId && Buffer.from(item.passwordHash.value()).equals(Buffer.from(passwordHash.value()))
-            )
-            if (stored === undefined || stored.validUntil < new Date()) return null
-            return users.find((user) => user._id === userId) ?? null
-        }),
-        deleteTempPassword: vi.fn(async (userId: string, passwordHash: Binary) => {
-            const index = tempPasswords.findIndex(
-                (item) => item.userId === userId && Buffer.from(item.passwordHash.value()).equals(Buffer.from(passwordHash.value()))
-            )
-            if (index !== -1) tempPasswords.splice(index, 1)
+        updateLegacyPasswordHash: vi.fn(async (id: string, oldSalt: Binary, oldHash: Binary, newSalt: Binary, newHash: Binary) => {
+            const user = users.find((item) => item._id === id && item.passwordHashVersion === undefined)
+            if (
+                user === undefined ||
+                !Buffer.from(user.passwordSalt.value()).equals(Buffer.from(oldSalt.value())) ||
+                !Buffer.from(user.passwordHash.value()).equals(Buffer.from(oldHash.value()))
+            ) {
+                return false
+            }
+            user.passwordSalt = newSalt
+            user.passwordHash = newHash
+            user.passwordHashVersion = 1
+            return true
         })
     }
-    return { storage: storage as unknown as AuthStorage, users, tempPasswords }
+    return { storage: storage as unknown as AuthStorage, users }
 }
 
 describe('authentication utilities', () => {
-    it('stores password hashes and issues a temporary credential valid for seven days', async () => {
-        const { storage, users, tempPasswords } = makeAuthStorage()
+    it('stores new passwords with the current hash version and returns no credential', async () => {
+        const { storage, users } = makeAuthStorage()
         const response = await signup(storage, 'Alex', 'alex@example.com', 'password')
 
         expect(response).toMatchObject({ id: expect.any(String), name: 'Alex', email: 'alex@example.com' })
-        expect(response.tempPassword).not.toBe('password')
+        expect(response).not.toHaveProperty('tempPassword')
         expect(users).toHaveLength(1)
+        expect(users[0]?.passwordHashVersion).toBe(1)
         expect(users[0]?.passwordHash.value()).not.toEqual(Buffer.from('password'))
-        expect(tempPasswords).toHaveLength(1)
-        expect(tempPasswords[0]?.userId).toBe(response.id)
-        expect(DateTime.fromJSDate(tempPasswords[0]!.validUntil).diffNow('days').days).toBeGreaterThan(6.99)
+        expect(users[0]?.passwordHash.value()).toEqual(
+            scryptSync('password', users[0]!.passwordSalt.value(), 64, { N: 32_768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 })
+        )
     })
 
     it('rejects duplicate account creation as a conflict', async () => {
@@ -63,41 +64,67 @@ describe('authentication utilities', () => {
         await expect(signup(storage, 'Alex', 'alex@example.com', 'password')).rejects.toMatchObject({ statusCode: 409 })
     })
 
-    it('rejects missing users and incorrect passwords without issuing credentials', async () => {
-        const { storage, tempPasswords } = makeAuthStorage()
-        await expect(signin(storage, 'missing', 'password')).resolves.toBeNull()
+    it('verifies legacy password hashes and upgrades them after successful signin', async () => {
+        const { storage, users } = makeAuthStorage()
+        const salt = randomBytes(64)
+        const legacyHash = scryptSync('existing-password', salt, 512, { N: 1024 })
+        users.push({
+            _id: 'legacy-user',
+            name: 'Legacy',
+            email: 'legacy@example.com',
+            passwordSalt: new Binary(salt),
+            passwordHash: new Binary(legacyHash)
+        })
 
-        await signup(storage, 'Alex', 'alex@example.com', 'correct-password')
-        const initialCredentialCount = tempPasswords.length
-        await expect(signin(storage, 'Alex', 'wrong-password')).resolves.toBeNull()
-        expect(tempPasswords).toHaveLength(initialCredentialCount)
+        const user = await signin(storage, 'Legacy', 'existing-password')
+        expect(user).toEqual({ id: 'legacy-user', name: 'Legacy', email: 'legacy@example.com' })
+        expect(users[0]?.passwordHashVersion).toBe(1)
+        expect(users[0]?.passwordHash.value()).not.toEqual(legacyHash)
+        expect(storage.updateLegacyPasswordHash).toHaveBeenCalledOnce()
+        await expect(signin(storage, 'Legacy', 'existing-password')).resolves.toEqual(user)
+    })
+
+    it('does not upgrade a legacy hash or mark the user active for a wrong password', async () => {
+        const { storage, users } = makeAuthStorage()
+        const salt = randomBytes(64)
+        const legacyHash = scryptSync('existing-password', salt, 512, { N: 1024 })
+        users.push({
+            _id: 'legacy-user',
+            name: 'Legacy',
+            email: 'legacy@example.com',
+            passwordSalt: new Binary(salt),
+            passwordHash: new Binary(legacyHash)
+        })
+
+        await expect(signin(storage, 'Legacy', 'wrong-password')).resolves.toBeNull()
+        expect(users[0]?.passwordHashVersion).toBeUndefined()
+        expect(users[0]?.passwordHash.value()).toEqual(legacyHash)
+        expect(storage.updateLegacyPasswordHash).not.toHaveBeenCalled()
         expect(storage.markUserActive).not.toHaveBeenCalled()
     })
 
-    it('issues a new credential after successful signin and validates then revokes it', async () => {
-        const { storage, tempPasswords } = makeAuthStorage()
-        await signup(storage, 'Alex', 'alex@example.com', 'correct-password')
+    it('rejects password hash versions that the engine does not support', async () => {
+        const { storage, users } = makeAuthStorage()
+        const salt = randomBytes(64)
+        users.push({
+            _id: 'future-user',
+            name: 'Future',
+            email: 'future@example.com',
+            passwordSalt: new Binary(salt),
+            passwordHash: new Binary(randomBytes(64)),
+            passwordHashVersion: 999
+        })
 
-        const response = await signin(storage, 'Alex', 'correct-password')
-        expect(response).not.toBeNull()
-        expect(response?.tempPassword).toEqual(expect.any(String))
-        expect(storage.markUserActive).toHaveBeenCalledWith(response?.id)
-
-        await expect(verifyTempPassword(storage, response!.id, response!.tempPassword)).resolves.toBe(response!.id)
-        expect(storage.markUserActive).toHaveBeenCalledTimes(2)
-
-        const issuedHash = tempPasswords.at(-1)!.passwordHash.value()
-        await logout(storage, response!.id, response!.tempPassword)
-        await expect(verifyTempPassword(storage, response!.id, response!.tempPassword)).rejects.toMatchObject({ statusCode: 403 })
-        expect(tempPasswords.some((item) => Buffer.from(item.passwordHash.value()).equals(Buffer.from(issuedHash)))).toBe(false)
+        await expect(signin(storage, 'Future', 'password')).resolves.toBeNull()
+        expect(storage.markUserActive).not.toHaveBeenCalled()
     })
 
-    it('rejects invalid and expired temporary credentials', async () => {
-        const { storage, tempPasswords } = makeAuthStorage()
-        const response = await signup(storage, 'Alex', 'alex@example.com', 'password')
-        await expect(verifyTempPassword(storage, response.id, 'invalid')).rejects.toMatchObject({ statusCode: 403 })
+    it('rejects missing users and incorrect passwords', async () => {
+        const { storage } = makeAuthStorage()
+        await expect(signin(storage, 'missing', 'password')).resolves.toBeNull()
 
-        tempPasswords[0]!.validUntil = new Date(Date.now() - 1)
-        await expect(verifyTempPassword(storage, response.id, response.tempPassword)).rejects.toMatchObject({ statusCode: 403 })
+        await signup(storage, 'Alex', 'alex@example.com', 'correct-password')
+        await expect(signin(storage, 'Alex', 'wrong-password')).resolves.toBeNull()
+        expect(storage.markUserActive).not.toHaveBeenCalled()
     })
 })

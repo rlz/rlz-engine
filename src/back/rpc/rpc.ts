@@ -1,16 +1,23 @@
 import { httpErrors } from '@fastify/sensible'
-import { FastifyInstance, FastifyPluginOptions, RawServerBase } from 'fastify'
+import { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest, RawServerBase } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import z from 'zod'
-import { verifyAdminSecret } from '../auth/admin-secret.js'
 
-const BEARER_PREFIX = /^Bearer\s+/i
+import { verifyAdminSecret } from '../auth/admin-secret.js'
 
 interface RpcEndpointCommon<BodyT extends object, RespT extends object> {
     readonly v: number
     readonly name: string
     readonly bodySchema: z.Schema<BodyT>
     readonly respSchema: z.Schema<RespT>
+}
+
+export interface RpcRequestContext {
+    request: Pick<FastifyRequest, 'headers' | 'cookies' | 'protocol'>
+    reply: {
+        setCookie: (...args: Parameters<FastifyReply['setCookie']>) => void
+        clearCookie: (...args: Parameters<FastifyReply['clearCookie']>) => void
+    }
 }
 
 interface RpcEndpointAnon<BodyT extends object = object, RespT extends object = object, OptsT = never> extends RpcEndpointCommon<
@@ -21,11 +28,12 @@ interface RpcEndpointAnon<BodyT extends object = object, RespT extends object = 
 
     readonly action: (
         body: { [k in keyof BodyT]: BodyT[k] },
-        opts: OptsT
+        opts: OptsT,
+        context: RpcRequestContext
     ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
 }
 
-interface RpcEndpointAuth<
+interface RpcEndpointCookieAuth<
     BodyT extends object = object,
     RespT extends object = object,
     OptsT = never,
@@ -33,22 +41,28 @@ interface RpcEndpointAuth<
 > extends RpcEndpointCommon<BodyT, RespT> {
     readonly anonimous?: false
 
-    readonly auth: (userId: string, password: string, opts: OptsT) => UserT | Promise<UserT>
+    /** Cookie authentication must include a CSRF verifier; it runs after session lookup and before the action. */
+    readonly cookieAuth: {
+        authenticate: (context: RpcRequestContext, opts: OptsT) => UserT | Promise<UserT>
+        verifyCsrf: (context: RpcRequestContext, user: UserT, opts: OptsT) => void | Promise<void>
+    }
 
     readonly action: (
         user: UserT,
         body: { [k in keyof BodyT]: BodyT[k] },
-        opts: OptsT
+        opts: OptsT,
+        context: RpcRequestContext
     ) => { [k in keyof RespT]: RespT[k] } | Promise<{ [k in keyof RespT]: RespT[k] }>
 }
 
 export type RpcEndpoint<BodyT extends object = object, RespT extends object = object, OptsT = never, UserT = never> =
-    RpcEndpointAnon<BodyT, RespT, OptsT> | RpcEndpointAuth<BodyT, RespT, OptsT, UserT>
+    RpcEndpointAnon<BodyT, RespT, OptsT> | RpcEndpointCookieAuth<BodyT, RespT, OptsT, UserT>
 
 export interface RpcEndpointInfo {
     v: number
     name: string
     anonimous: boolean
+    cookieAuth: boolean
     bodySchema: z.Schema
     respSchema: z.Schema
 }
@@ -65,6 +79,7 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
         v: endpoint.v,
         name: endpoint.name,
         anonimous: endpoint.anonimous ?? false,
+        cookieAuth: 'cookieAuth' in endpoint,
         bodySchema: endpoint.bodySchema,
         respSchema: endpoint.respSchema,
 
@@ -87,33 +102,31 @@ function makeReg<BodyT extends object = object, RespT extends object = object, O
                         }
                     }
                 },
-                endpoint.anonimous === true
-                    ? async (req, resp) => {
-                          const body = req.body as BodyT
-                          const respBody = await endpoint.action(body, opts)
-                          resp.send(respBody)
-                      }
-                    : async (req, resp) => {
-                          const authHeader = req.headers.authorization
-                          if (authHeader === undefined) {
-                              throw httpErrors.forbidden()
-                          }
-                          const bearerMatch = BEARER_PREFIX.exec(authHeader)
-                          // User RPC accepts only the Bearer authorization scheme.
-                          if (bearerMatch === null) {
-                              throw httpErrors.forbidden()
-                          }
-                          const credentials = authHeader.substring(bearerMatch[0].length).split(':')
-                          const [userId, password] = credentials
-                          if (userId === undefined || password === undefined || credentials.length !== 2) {
-                              throw httpErrors.forbidden()
-                          }
-                          const user = await endpoint.auth(userId, password, opts)
+                async (req, resp) => {
+                    const context: RpcRequestContext = {
+                        request: req,
+                        reply: {
+                            setCookie: (...args) => {
+                                resp.setCookie(...args)
+                            },
+                            clearCookie: (...args) => {
+                                resp.clearCookie(...args)
+                            }
+                        }
+                    }
+                    const body = req.body as BodyT
 
-                          const body = req.body as BodyT
-                          const respBody = await endpoint.action(user, body, opts)
-                          await resp.send(respBody)
-                      }
+                    if (endpoint.anonimous === true) {
+                        const respBody = await endpoint.action(body, opts, context)
+                        await resp.send(respBody)
+                        return
+                    }
+
+                    const user = await endpoint.cookieAuth.authenticate(context, opts)
+                    await endpoint.cookieAuth.verifyCsrf(context, user, opts)
+                    const respBody = await endpoint.action(user, body, opts, context)
+                    await resp.send(respBody)
+                }
             )
         }
     }

@@ -9,10 +9,9 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
     return generateTypedClient(fileName, rpcBuilders, {
         callFunction: 'rpcCall',
         clientName: 'RPC_CLIENT',
-        importNames: ['AuthParam', 'rpcCall'],
+        importNames: ['rpcCall'],
         endpointInfo: (builder) => builder.endpoints,
-        authParams: (endpoint) => ('anonimous' in endpoint && endpoint.anonimous ? [] : [{ name: 'auth', type: 'AuthParam' }]),
-        authArgument: (endpoint) => ('anonimous' in endpoint && endpoint.anonimous ? F.createNull() : F.createIdentifier('auth'))
+        authParams: () => []
     })
 }
 
@@ -30,10 +29,10 @@ export function generateAdmClient(fileName: string, ...rpcBuilders: readonly Adm
 interface ClientGeneratorOptions<BuilderT extends { name: string }> {
     callFunction: string
     clientName: string
-    importNames: [string, string]
+    importNames: readonly string[]
     endpointInfo: (builder: BuilderT) => readonly (RpcEndpointInfo | AdmRpcEndpointInfo)[]
     authParams: (endpoint: RpcEndpointInfo | AdmRpcEndpointInfo) => { name: string; type: string }[]
-    authArgument: (endpoint: RpcEndpointInfo | AdmRpcEndpointInfo) => ts.Expression
+    authArgument?: (endpoint: RpcEndpointInfo | AdmRpcEndpointInfo) => ts.Expression
 }
 
 function generateTypedClient<BuilderT extends { name: string }>(
@@ -56,10 +55,9 @@ function generateTypedClient<BuilderT extends { name: string }>(
                 F.createImportClause(
                     false,
                     undefined,
-                    F.createNamedImports([
-                        F.createImportSpecifier(false, undefined, F.createIdentifier(options.importNames[0])),
-                        F.createImportSpecifier(false, undefined, F.createIdentifier(options.importNames[1]))
-                    ])
+                    F.createNamedImports(
+                        options.importNames.map((name) => F.createImportSpecifier(false, undefined, F.createIdentifier(name)))
+                    )
                 ),
                 F.createStringLiteral('rlz-engine/client/rpc.js'),
                 undefined
@@ -112,7 +110,7 @@ function generateTypedClient<BuilderT extends { name: string }>(
                             F.createReturnStatement(
                                 F.createAwaitExpression(
                                     F.createCallExpression(F.createIdentifier(options.callFunction), undefined, [
-                                        options.authArgument(e),
+                                        ...(options.authArgument === undefined ? [] : [options.authArgument(e)]),
                                         F.createStringLiteral(b.name),
                                         F.createStringLiteral(e.name),
                                         F.createNumericLiteral(e.v),

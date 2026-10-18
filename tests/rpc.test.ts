@@ -1,64 +1,69 @@
-import fastify from 'fastify'
-import formatsPlugin from 'ajv-formats'
-import sensible from '@fastify/sensible'
-import responseValidation from '@fastify/response-validation'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import responseValidation from '@fastify/response-validation'
+import sensible, { httpErrors } from '@fastify/sensible'
+import type { Plugin } from 'ajv'
+import formatsPlugin from 'ajv-formats'
+import fastifyCookie from '@fastify/cookie'
+import fastify from 'fastify'
 import { describe, expect, it } from 'vitest'
 import z from 'zod'
 
-import { generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
 import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
+import { CSRF_TOKEN_HEADER, makeCsrfToken, verifyCsrfToken } from '../src/back/auth/csrf.js'
 import { getAuditLogger, initAuditLogger } from '../src/back/logger/audit-logger.js'
 import { LOGGER_MODULE } from '../src/back/logger/module.js'
+import { generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
-    it('accepts Bearer credentials and rejects legacy or unsupported authorization schemes', async () => {
-        const authenticatedUsers: string[] = []
-        const builder = rpc('example').add({
-            name: 'private',
+    it('supports cookie authentication only when the endpoint CSRF verifier accepts the request', async () => {
+        const csrfToken = makeCsrfToken()
+        const builder = rpc('session').add({
+            name: 'profile',
             v: 1,
             bodySchema: z.object({}),
             respSchema: z.object({ userId: z.string() }),
-            auth: (userId) => {
-                authenticatedUsers.push(userId)
-                return userId
+            cookieAuth: {
+                authenticate: ({ request }) => {
+                    if (request.cookies.sessionId !== 'valid-session') throw httpErrors.forbidden()
+                    return 'user-1'
+                },
+                verifyCsrf: ({ request }) => {
+                    if (!verifyCsrfToken(csrfToken, request.headers[CSRF_TOKEN_HEADER])) throw httpErrors.forbidden()
+                }
             },
             action: (userId) => ({ userId })
         })
-        const app = fastify({ ajv: { plugins: [formatsPlugin.default] } })
+        const app = fastify()
         await app.register(sensible)
-        await app.register(responseValidation)
+        await app.register(fastifyCookie)
         await app.register(builder.makeFastifyPlugin())
         await app.ready()
 
-        const legacy = await app.inject({
+        const missingCsrf = await app.inject({
             method: 'POST',
-            url: '/rpc/example_private_v1',
-            headers: { authorization: 'user-1:password' },
+            url: '/rpc/session_profile_v1',
+            headers: { cookie: 'sessionId=valid-session' },
             payload: {}
         })
-        expect(legacy.statusCode).toBe(403)
+        expect(missingCsrf.statusCode).toBe(403)
 
-        const bearer = await app.inject({
+        const valid = await app.inject({
             method: 'POST',
-            url: '/rpc/example_private_v1',
-            headers: { authorization: 'Bearer user-2:password' },
+            url: '/rpc/session_profile_v1',
+            headers: { cookie: 'sessionId=valid-session', [CSRF_TOKEN_HEADER]: csrfToken },
             payload: {}
         })
-        expect(bearer.statusCode).toBe(200)
-        expect(bearer.json()).toEqual({ userId: 'user-2' })
+        expect(valid.statusCode).toBe(200)
+        expect(valid.json()).toEqual({ userId: 'user-1' })
 
-        const unsupported = await app.inject({
-            method: 'POST',
-            url: '/rpc/example_private_v1',
-            headers: { authorization: 'Basic user-3:password' },
-            payload: {}
-        })
-        expect(unsupported.statusCode).toBe(403)
-        expect(authenticatedUsers).toEqual(['user-2'])
+        const generated = generateClient('client.ts', builder)
+        expect(generated).toContain('profile: async (body: RpcBodySessionProfileV1)')
+        expect(generated).not.toContain('AuthParam')
+
         await app.close()
     })
 
@@ -193,7 +198,7 @@ describe('RPC contracts', () => {
         getAuditLogger('APP').info({ type: 'user.created', userId: 'user-1' })
         getAuditLogger('OTHER').error({ type: 'request.failed' })
 
-        const app = fastify({ ajv: { plugins: [formatsPlugin.default] } })
+        const app = fastify({ ajv: { plugins: [formatsPlugin.default as unknown as Plugin<unknown>] } })
         await app.register(sensible)
         await app.register(responseValidation)
         await app.register(LOGGER_MODULE.makeAdmRpc().makeFastifyPlugin(), { workingDirectory })

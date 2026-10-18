@@ -1,4 +1,4 @@
-import { getFrontConfig } from './config.js'
+import { getCsrfToken, getFrontConfig } from './config.js'
 
 export class HttpError extends Error {
     readonly method: string
@@ -59,30 +59,18 @@ async function prepareBody(request: object): Promise<Blob | string> {
     return new Response(bodyStreamCompressed).blob()
 }
 
-export interface AuthParam {
-    userId: string
-    tempPassword: string
-}
-
-export interface BearerAuthParam {
-    bearerToken: string
-}
-
 export interface AdmAuthParam {
     adminSecret: string
 }
 
 export async function rpcCall<BodyT extends object, RespT extends object>(
-    auth: AuthParam | BearerAuthParam | null,
     rpcName: string,
     callName: string,
     version: number,
     bodyObject: BodyT
 ): Promise<RespT> {
-    const authorization =
-        auth === null ? undefined : 'bearerToken' in auth ? `Bearer ${auth.bearerToken}` : `Bearer ${auth.userId}:${auth.tempPassword}`
-
-    return request(url(rpcName, callName, version), authorization, bodyObject)
+    const csrfToken = getCsrfToken() ?? undefined
+    return request(url(rpcName, callName, version), undefined, bodyObject, csrfToken)
 }
 
 export async function admRpcCall<BodyT extends object, RespT extends object>(
@@ -98,7 +86,8 @@ export async function admRpcCall<BodyT extends object, RespT extends object>(
 async function request<BodyT extends object, RespT extends object>(
     u: string,
     authorization: string | undefined,
-    bodyObject: BodyT
+    bodyObject: BodyT,
+    csrfToken?: string
 ): Promise<RespT> {
     const headers: Record<string, string> = {}
 
@@ -112,11 +101,13 @@ async function request<BodyT extends object, RespT extends object>(
     }
 
     if (authorization !== undefined) headers['authorization'] = authorization
+    if (csrfToken !== undefined) headers['x-csrf-token'] = csrfToken
 
     const resp = await fetch(u, {
         method: 'post',
         headers,
-        body
+        body,
+        credentials: 'same-origin'
     })
 
     if (!resp.ok) {

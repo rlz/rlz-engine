@@ -1,4 +1,5 @@
 import fastifyCompress from '@fastify/compress'
+import fastifyCookie from '@fastify/cookie'
 import fastifyCors from '@fastify/cors'
 import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
@@ -11,7 +12,7 @@ import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 
-import { initAuditLogger, type AuditLoggerConfig } from '../logger/audit-logger.js'
+import { type AuditLoggerConfig, initAuditLogger } from '../logger/audit-logger.js'
 import { getSystemLogger } from '../logger/system-logger.js'
 
 const DEFAULT_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
@@ -83,8 +84,8 @@ export async function runServer({
                 customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             }
         })
-
         if (!production) {
+            await httpServer.register(fastifyCookie)
             await httpServer.register(fastifyCors, {
                 methods: ['get', 'post']
             })
@@ -131,15 +132,14 @@ export async function runServer({
             }
         })
 
+        await httpsServer.register(fastifyCookie)
+
         await httpsServer.register(fastifyAcmeSecurePlugin, {
             certDir,
             domain,
             provider: acmeProvider
         })
 
-        await httpsServer.register(fastifyCors, {
-            methods: ['get', 'post']
-        })
         await httpsServer.register(fastifyCompress)
         await httpsServer.register(fastifySensible)
         await httpsServer.register(fastifyResponseValidation, {
