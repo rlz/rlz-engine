@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyPluginCallback, FastifyPluginOptions } fro
 
 import { CliEngine, type CliModule, DevCliEngine } from '../cli/cli-engine.js'
 import type { AdmRpcPluginBuilder, RpcPluginBuilder } from '../rpc/rpc.js'
+import type { AdmModule } from '../../client/adm/admin.js'
 
 /**
  * Runtime facets returned by feature module factories. Applications create only
@@ -12,6 +13,7 @@ export interface ModuleFacets {
     devCli?: readonly CliModule[]
     rpc?: readonly RpcPluginBuilder[]
     admRpc?: readonly AdmRpcPluginBuilder[]
+    adm?: readonly AdmModule[]
     rpcOptions?: Readonly<Record<string, FastifyPluginOptions>>
     admRpcOptions?: Readonly<Record<string, FastifyPluginOptions>>
 }
@@ -26,6 +28,7 @@ export function composeModules(...facets: readonly ModuleFacets[]) {
     const devCliModules = facets.flatMap(({ devCli = [] }) => devCli)
     const rpcBuilders = facets.flatMap(({ rpc = [] }) => rpc)
     const admRpcBuilders = facets.flatMap(({ admRpc = [] }) => admRpc)
+    const admModules = facets.flatMap(({ adm = [] }) => adm)
     const rpcOptions = Object.assign({}, ...facets.map(({ rpcOptions = {} }) => rpcOptions))
     const admRpcOptions = Object.assign({}, ...facets.map(({ admRpcOptions = {} }) => admRpcOptions))
 
@@ -45,8 +48,14 @@ export function composeModules(...facets: readonly ModuleFacets[]) {
         admRpcBuilders.map(({ name }) => name),
         'administrative RPC plugin'
     )
+    assertUniqueNames(
+        admModules.map(({ name }) => name),
+        'administration section'
+    )
 
     return {
+        /** Administration sections for the application's route at `/.adm`. */
+        adm: admModules,
         /** Register the selected operational commands with the application's CLI. */
         registerCli(engine: CliEngine): CliEngine {
             for (const module of cliModules) engine.register(module)
