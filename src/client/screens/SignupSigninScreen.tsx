@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { AuthState, useAuthState } from '../state/auth.js'
 
 export interface SignupSigninAuthClient {
-    signup: (name: string, email: string, password: string) => Promise<AuthResult>
+    signup: (name: string, email: string, password: string) => Promise<void>
     signin: (name: string, password: string) => Promise<AuthResult>
     session: () => Promise<AuthResult>
 }
@@ -117,8 +117,8 @@ function SignupForm({ authClient }: { authClient: SignupSigninAuthClient }) {
                 label={'Password'}
                 type={'password'}
                 value={password}
-                error={passwordActivated && password === ''}
-                helperText={passwordActivated ? (password === '' ? 'Empty password' : 'ok') : 'required'}
+                error={passwordActivated && password.length < 12}
+                helperText={passwordActivated ? (password.length < 12 ? 'Use at least 12 characters' : 'ok') : 'required'}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setPasswordActivated(true)}
             />
@@ -140,7 +140,7 @@ function SignupForm({ authClient }: { authClient: SignupSigninAuthClient }) {
                 <Button
                     variant={'contained'}
                     fullWidth
-                    disabled={name === '' || !isValidEmail(email) || password === '' || password2 !== password || syncInProgress}
+                    disabled={name === '' || !isValidEmail(email) || password.length < 12 || password2 !== password || syncInProgress}
                     onClick={doSignUp}
                 >
                     {'Signup'}
@@ -170,13 +170,12 @@ async function signup(
     password: string,
     password2: string
 ) {
-    if (name === '' || !isValidEmail(email) || password === '' || password2 !== password) {
+    if (name === '' || !isValidEmail(email) || password.length < 12 || password2 !== password) {
         return
     }
 
-    const resp = await authClient.signup(name, email, password)
-
-    login(resp.id, resp.name, resp.email, resp.csrfToken)
+    await authClient.signup(name, email, password)
+    await signin(authClient, login, name, password)
 }
 
 function SigninForm({ authClient }: { authClient: SignupSigninAuthClient }) {

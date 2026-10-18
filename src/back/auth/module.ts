@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { resetAdminSecret } from './admin-secret.js'
 import { clearSessionCookie, setSessionCookie } from './cookies.js'
 import { assertSameOrigin } from './csrf.js'
+import { AuthRateLimiter } from './rate-limit.js'
 import {
     authenticateSession,
     createSession,
@@ -19,8 +20,12 @@ import { signin, signup } from './utils.js'
 import { z } from 'zod'
 
 const AUTH_RESPONSE_SCHEMA = z.object({ id: z.uuid(), name: z.string(), email: z.email(), csrfToken: z.string() })
-const SIGNUP_REQUEST_SCHEMA = z.object({ name: z.string(), email: z.email(), password: z.string() })
-const SIGNIN_REQUEST_SCHEMA = z.object({ name: z.string(), password: z.string() })
+const SIGNUP_REQUEST_SCHEMA = z.object({
+    name: z.string().min(1).max(64),
+    email: z.email().max(254),
+    password: z.string().min(12).max(1024)
+})
+const SIGNIN_REQUEST_SCHEMA = z.object({ name: z.string().min(1).max(64), password: z.string().max(1024) })
 const EMPTY_REQUEST_SCHEMA = z.object({})
 const EMPTY_RESPONSE_SCHEMA = z.object({})
 
@@ -42,19 +47,26 @@ export const AUTH_MODULE = {
             throw new RangeError(`sessionIdleTimeoutMs must be a positive integer no greater than ${SESSION_ABSOLUTE_TIMEOUT_MS}`)
         }
 
+        const rateLimiter = new AuthRateLimiter()
+
         return rpc('auth')
             .add({
                 v: 1,
                 name: 'signup',
                 anonimous: true,
                 bodySchema: SIGNUP_REQUEST_SCHEMA,
-                respSchema: AUTH_RESPONSE_SCHEMA,
+                respSchema: EMPTY_RESPONSE_SCHEMA,
                 action: async (body, _opts, context) => {
                     assertSameOrigin(context.request)
-                    const user = await signup(storage, body.name, body.email, body.password)
-                    const session = await createSession(storage, user.id)
-                    setSessionCookie(context.reply, session.sessionId)
-                    return { ...user, csrfToken: session.csrfToken }
+                    await rateLimiter.run('signup', context.request.ip, async () => {
+                        try {
+                            await signup(storage, body.name, body.email, body.password)
+                        } catch (error) {
+                            // Keep a duplicate name indistinguishable from a successful registration.
+                            if (!isConflictError(error)) throw error
+                        }
+                    })
+                    return {}
                 }
             })
             .add({
@@ -65,7 +77,7 @@ export const AUTH_MODULE = {
                 respSchema: AUTH_RESPONSE_SCHEMA,
                 action: async (body, _opts, context) => {
                     assertSameOrigin(context.request)
-                    const response = await signin(storage, body.name, body.password)
+                    const response = await rateLimiter.run('signin', context.request.ip, () => signin(storage, body.name, body.password))
                     if (response === null) throw httpErrors.unauthorized()
                     await revokeCurrentSession(storage, context)
                     const session = await createSession(storage, response.id)
@@ -121,4 +133,8 @@ export const AUTH_MODULE = {
             }
         }
     }
+}
+
+function isConflictError(error: unknown): boolean {
+    return error instanceof Error && 'statusCode' in error && error.statusCode === 409
 }

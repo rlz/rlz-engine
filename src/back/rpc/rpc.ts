@@ -13,7 +13,7 @@ interface RpcEndpointCommon<BodyT extends object, RespT extends object> {
 }
 
 export interface RpcRequestContext {
-    request: Pick<FastifyRequest, 'headers' | 'cookies' | 'protocol'>
+    request: Pick<FastifyRequest, 'headers' | 'cookies' | 'protocol' | 'ip'>
     reply: {
         setCookie: (...args: Parameters<FastifyReply['setCookie']>) => void
         clearCookie: (...args: Parameters<FastifyReply['clearCookie']>) => void
