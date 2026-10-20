@@ -1,10 +1,11 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import z from 'zod'
+import { option, string } from 'cmd-ts'
 
-import { DevCliEngine } from '../src/back/cli/cli-engine.js'
+import { cliCommand, CliEngine, DevCliEngine } from '../src/back/cli/cli-engine.js'
 import { RPC_MODULE } from '../src/back/rpc/module.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
@@ -50,5 +51,35 @@ describe('development CLI', () => {
         } finally {
             await rm(workingDirectory, { recursive: true, force: true })
         }
+    })
+})
+
+describe('operational CLI', () => {
+    it('passes parsed arguments from cliCommand to the handler', async () => {
+        const handler = vi.fn()
+        const engine = new CliEngine('app.js').register({
+            name: 'strategies',
+            description: 'Manage strategies.',
+            commands: {
+                backup: cliCommand({
+                    description: 'Create a database backup.',
+                    args: {
+                        file: option({
+                            type: string,
+                            long: 'file',
+                            defaultValue: () => 'default.sqlite',
+                            description: 'Backup file path.'
+                        })
+                    },
+                    handler
+                })
+            }
+        })
+
+        await engine.run(['strategies', 'backup'])
+        await engine.run(['strategies', 'backup', '--file', 'custom.sqlite'])
+
+        expect(handler).toHaveBeenNthCalledWith(1, { file: 'default.sqlite' })
+        expect(handler).toHaveBeenNthCalledWith(2, { file: 'custom.sqlite' })
     })
 })

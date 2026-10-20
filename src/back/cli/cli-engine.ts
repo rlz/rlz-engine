@@ -1,10 +1,23 @@
 import { command, run as runCommand, subcommands } from 'cmd-ts'
+import type { ArgParser, ParsingInto } from 'cmd-ts/dist/esm/argparser.js'
+
+type CliArgs = Record<string, ArgParser<any>>
+type ParsedCliArgs<Args extends CliArgs> = { [Key in keyof Args]: ParsingInto<Args[Key]> }
 
 /** One command leaf exposed under a CLI module namespace. */
 export interface CliCommand {
     readonly description: string
-    readonly args?: Readonly<Record<string, any>>
-    readonly handler: (args: Record<string, any>) => void | Promise<void>
+    readonly args?: Readonly<CliArgs>
+    readonly handler: (args: any) => void | Promise<void>
+}
+
+/** Define a CLI command while inferring its parsed handler arguments from cmd-ts parsers. */
+export function cliCommand<Args extends CliArgs>(config: {
+    readonly description: string
+    readonly args: Args
+    readonly handler: (args: ParsedCliArgs<Args>) => void | Promise<void>
+}): CliCommand {
+    return config
 }
 
 /** A namespaced group of related commands, such as `http start`. */

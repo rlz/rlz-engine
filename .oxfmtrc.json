@@ -1,16 +1,10 @@
 {
-  "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "tabWidth": 4,
-  "singleQuote": true,
-  "semi": false,
-  "trailingComma": "none",
-  "printWidth": 140,
-  "sortPackageJson": false,
-  "ignorePatterns": [
-    ".git",
-    ".pnpm-store",
-    "dist",
-    "node_modules",
-    "package-lock.json"
-  ]
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "tabWidth": 4,
+    "singleQuote": true,
+    "semi": false,
+    "trailingComma": "none",
+    "printWidth": 140,
+    "sortPackageJson": false,
+    "ignorePatterns": [".git", ".pnpm-store", "dist", "node_modules", "package-lock.json"]
 }

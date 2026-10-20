@@ -1,7 +1,7 @@
 import { number, oneOf, option, optional, string } from 'cmd-ts'
 import { resolve } from 'node:path'
 
-import type { CliModule } from '../cli/cli-engine.js'
+import { cliCommand, type CliModule } from '../cli/cli-engine.js'
 import { formatAuditRecord } from './format.js'
 import { readAuditLogFile } from './sqlite-storage.js'
 
@@ -12,7 +12,7 @@ export function makeAuditLogCliModule(workingDirectory: string | (() => string) 
         name: 'logger',
         description: 'Read and inspect persisted audit logs.',
         commands: {
-            logs: {
+            logs: cliCommand({
                 description: 'Read audit records from a SQLite database with optional filters.',
                 args: {
                     database: option({
@@ -40,7 +40,7 @@ export function makeAuditLogCliModule(workingDirectory: string | (() => string) 
                     })
                     process.stdout.write(page.records.map((record) => formatAuditRecord(record)).join(''))
                 }
-            }
+            })
         }
     }
 }
