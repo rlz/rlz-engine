@@ -4,7 +4,15 @@ import fastifyCors from '@fastify/cors'
 import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
-import fastify, { FastifyBaseLogger, FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
+import fastify, {
+    FastifyBaseLogger,
+    FastifyInstance,
+    FastifyPluginAsync,
+    FastifyPluginCallback,
+    RawReplyDefaultExpression,
+    RawRequestDefaultExpression,
+    RawServerBase
+} from 'fastify'
 import { type AcmeProvider, fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
@@ -18,10 +26,6 @@ const DEFAULT_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const DEFAULT_AUDIT_MAX_RECORDS = 100_000
 
 installIntoGlobal()
-
-export type InitServerFuncType = <S extends RawServerBase>(
-    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, FastifyBaseLogger>
-) => Promise<void>
 
 export interface RunServerParams {
     production: boolean
@@ -39,7 +43,8 @@ export interface RunServerParams {
     /** Certificate authority used for ACME issuance and renewal. Defaults to Let's Encrypt. */
     acmeProvider?: AcmeProvider
     staticDir: string
-    init: InitServerFuncType
+    /** Application routes and integrations, installed on each server instance. */
+    plugins?: readonly (FastifyPluginAsync | FastifyPluginCallback)[]
 }
 
 export async function runServer({
@@ -54,7 +59,7 @@ export async function runServer({
     staticDir,
     securePort,
     unsecurePort,
-    init
+    plugins = []
 }: RunServerParams): Promise<() => Promise<void>> {
     const sqliteConfig = { path: path.resolve('logs.sqlite'), retentionMs: auditRetentionMs, maxRecords: auditMaxRecords }
     const auditLoggerConfig: AuditLoggerConfig =
@@ -86,7 +91,7 @@ export async function runServer({
                 ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             })
 
-            await init(httpServer)
+            await registerPlugins(httpServer, plugins)
 
             addStaticEndpoints(httpServer, staticDir)
 
@@ -137,7 +142,7 @@ export async function runServer({
             ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
         })
 
-        await init(httpsServer)
+        await registerPlugins(httpsServer, plugins)
 
         httpsServer.all('/rpc/*', async () => {
             return httpErrors.notFound()
@@ -157,6 +162,15 @@ export async function runServer({
     } catch (error) {
         closeAuditLogger()
         throw error
+    }
+}
+
+async function registerPlugins<S extends RawServerBase>(
+    server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, FastifyBaseLogger>,
+    plugins: readonly (FastifyPluginAsync | FastifyPluginCallback)[]
+) {
+    for (const plugin of plugins) {
+        await server.register(plugin)
     }
 }
 

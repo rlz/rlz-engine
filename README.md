@@ -32,7 +32,7 @@ Each backend feature lives in a cohesive directory and exposes an uppercase `<FE
 | Module          | Facets                                    | Purpose                                                             |
 | --------------- | ----------------------------------------- | ------------------------------------------------------------------- |
 | `AUTH_MODULE`   | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
-| `HTTP_MODULE`   | `makeCli(params, init)`                   | `http start` server command                                         |
+| `HTTP_MODULE`   | `makeCli(params, options?)`                | `http start` server command                                         |
 | `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()`               | Audit-log reader command and protected audit query endpoint         |
 | `RPC_MODULE`    | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
 
@@ -50,20 +50,18 @@ import { HTTP_MODULE } from 'rlz-engine/back/http/module.js'
 import { LOGGER_MODULE } from 'rlz-engine/back/logger/module.js'
 import { RPC_MODULE } from 'rlz-engine/back/rpc/module.js'
 
+const applicationPlugin = async (server) => {
+    await server.register(applicationRoutes)
+}
+
 const applicationModules = composeModules({
-    cli: [AUTH_MODULE.makeCli(), HTTP_MODULE.makeCli(serverParams, initializeRoutes), LOGGER_MODULE.makeCli()],
+    cli: [AUTH_MODULE.makeCli(), HTTP_MODULE.makeCli(serverParams, { plugins: [applicationPlugin] }), LOGGER_MODULE.makeCli()],
     rpc: userRpcPlugins,
     admRpc: [LOGGER_MODULE.makeAdmRpc()]
 })
 
 const cli = applicationModules.registerCli(new CliEngine('app.js'))
 await cli.run()
-
-async function initializeRoutes(server) {
-    await applicationModules.registerRpc(server)
-    await applicationModules.registerAdmRpc(server)
-    // Register application-owned routes and plugins here.
-}
 
 const devModules = composeModules({
     devCli: [
@@ -81,7 +79,7 @@ await devCli.run()
 
 `composeModules()` accepts any combination of `cli`, `devCli`, `rpc`, and `admRpc` arrays; omit facets the application does not use. For RPC builders that need Fastify plugin options, provide `rpcOptions` or `admRpcOptions`, keyed by each builder's `name` (for example, `{ audit: { workingDirectory: appDirectory } }`). The returned object has `registerCli()`, `registerDevCli()`, `registerRpc()`, and `registerAdmRpc()` methods. RPC registration methods are asynchronous and register plugins in array order. Duplicate module or plugin names within the same category throw during composition. Operational and development commands remain separate so client generation does not need to be included in production command setup. Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show progressively narrower command help.
 
-`AUTH_MODULE.makeRpc(storage, options?)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, init)` accepts `RunServerParams` without `init`, or a callback that returns those settings, and the route initialization callback. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
+`AUTH_MODULE.makeRpc(storage, options?)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, options?)` accepts `RunServerParams` without `plugins`, or a callback that returns those settings. `options.plugins` lists Fastify plugins registered on each server; no server initialization callback is needed. `options.before` runs after settings resolve and before server startup; `options.after` runs after the server is listening and receives its shutdown function. If `before` fails, the server is not started. If `after` fails, the module shuts down the server before rethrowing. These hooks let applications attach lifecycle work without replacing the built-in HTTP command. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
 
 ## HTTP server
 
@@ -95,13 +93,11 @@ await runServer({
     domain: 'example.com',
     certDir: './certs',
     staticDir: './dist',
-    init: async (server) => {
-        // Register application routes and plugins here.
-    }
+    plugins: [applicationPlugin]
 })
 ```
 
-`domain`, `certDir`, `staticDir`, and `init` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, and `acmeProvider`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
+`domain`, `certDir`, and `staticDir` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, `acmeProvider`, and `plugins`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
 
 By default, non-debug production writes audit logs to `logs.sqlite`. Development and debug mode use colored console output. Set `auditSqlite: true` (or pass `--audit-sqlite` to `http start`) to write SQLite records alongside console output. Retention defaults to 30 days and the maximum record count defaults to 100,000.
 
@@ -137,11 +133,12 @@ export const adminRpc = admRpc('operations').add({
 })
 ```
 
-Register the generated Fastify plugins from the application initialization callback:
+Pass the generated Fastify plugins to `HTTP_MODULE`; the engine registers them on both development and production servers:
 
 ```ts
-await server.register(userRpc.makeFastifyPlugin())
-await server.register(adminRpc.makeFastifyPlugin())
+HTTP_MODULE.makeCli(serverParams, {
+    plugins: [userRpc.makeFastifyPlugin(), adminRpc.makeFastifyPlugin()]
+})
 ```
 
 User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated user routes use cookie sessions and require both a session authenticator and a CSRF verifier.
