@@ -2,6 +2,7 @@ import { admRpcCall } from '../../client/rpc.js'
 import { CertificateStatus } from '../../client/adm/certificate.js'
 import type { AdmModule } from '../../client/adm/admin.js'
 import { makeCertificateAdmRpc } from './adm-rpc.js'
+import { makeCertificateCli } from './cli.js'
 
 export interface CertificateModuleOptions {
     certDir: string
@@ -21,6 +22,7 @@ function makeAdm(): AdmModule {
 
 /** TLS certificate status integrations. */
 export const CERTIFICATE_MODULE = {
+    makeCli: makeCertificateCli,
     makeAdmRpc: makeCertificateAdmRpc,
     makeAdm
 }

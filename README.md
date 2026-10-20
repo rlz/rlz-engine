@@ -29,14 +29,15 @@ import { syncItems } from 'rlz-engine/client/sync.js'
 
 Each backend feature lives in a cohesive directory and exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. The object contains only the integration factories that feature supports. Applications invoke the factories for the integrations they want, then pass the returned facet values to `composeModules()`.
 
-| Module          | Facets                                    | Purpose                                                             |
-| --------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| `AUTH_MODULE`   | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
-| `HTTP_MODULE`   | `makeCli(params, options?)`                | `http start` server command                                         |
-| `LOGGER_MODULE` | `makeCli()`, `makeAdmRpc()`               | Audit-log reader command and protected audit query endpoint         |
-| `RPC_MODULE`    | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
+| Module               | Facets                                    | Purpose                                                             |
+| -------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| `AUTH_MODULE`        | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
+| `CERTIFICATE_MODULE` | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | ACME account registration and certificate status                    |
+| `HTTP_MODULE`        | `makeCli(params, options?)`               | `http start` server command                                         |
+| `LOGGER_MODULE`      | `makeCli()`, `makeAdmRpc()`               | Audit-log reader command and protected audit query endpoint         |
+| `RPC_MODULE`         | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
 
-The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI and certificate-status module remain planned; the administrative RPC transport and audit-log endpoint are available now.
+The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI, audit-log viewer, and certificate-status module are available as opt-in modules.
 
 ### CLI composition
 
@@ -46,6 +47,7 @@ The composer groups selected operational CLI, development CLI, user RPC, and adm
 import { CliEngine, DevCliEngine } from 'rlz-engine/back/cli/cli-engine.js'
 import { composeModules } from 'rlz-engine/back/module/composer.js'
 import { AUTH_MODULE } from 'rlz-engine/back/auth/module.js'
+import { CERTIFICATE_MODULE } from 'rlz-engine/back/certificate/module.js'
 import { HTTP_MODULE } from 'rlz-engine/back/http/module.js'
 import { LOGGER_MODULE } from 'rlz-engine/back/logger/module.js'
 import { RPC_MODULE } from 'rlz-engine/back/rpc/module.js'
@@ -55,7 +57,12 @@ const applicationPlugin = async (server) => {
 }
 
 const applicationModules = composeModules({
-    cli: [AUTH_MODULE.makeCli(), HTTP_MODULE.makeCli(serverParams, { plugins: [applicationPlugin] }), LOGGER_MODULE.makeCli()],
+    cli: [
+        AUTH_MODULE.makeCli(),
+        CERTIFICATE_MODULE.makeCli(),
+        HTTP_MODULE.makeCli(serverParams, { plugins: [applicationPlugin] }),
+        LOGGER_MODULE.makeCli()
+    ],
     rpc: userRpcPlugins,
     admRpc: [LOGGER_MODULE.makeAdmRpc()]
 })
