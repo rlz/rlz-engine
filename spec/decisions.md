@@ -144,6 +144,12 @@ Removing the user Bearer callback also removes the `userId:password` credential 
 
 **Reason:** Local development does not need public TLS certificate issuance, while production needs an HTTP-01 endpoint and TLS for application traffic.
 
+## Register AJV formats on every validator instance
+
+**Decision:** The HTTP server's AJV plugin always installs standard formats. It installs comparison keywords only when they are missing, so validators created by `@fastify/response-validation` receive formats such as `date-time` even when their Ajv instance already has `formatMaximum`.
+
+**Reason:** The response-validation plugin creates a separate Ajv instance. Checking only for `formatMaximum` incorrectly treated that keyword as proof that standard formats were present, causing strict schema compilation to fail for date-time response fields.
+
 ## Reconcile MongoDB indexes from configuration
 
 **Decision:** `MongoStorage.createIndexes` removes non-system indexes not present in the supplied configuration and creates configured indexes that are missing.

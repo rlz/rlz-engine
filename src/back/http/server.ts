@@ -4,27 +4,18 @@ import fastifyCors from '@fastify/cors'
 import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
-import { Ajv } from 'ajv'
-import formatsPlugin from 'ajv-formats'
 import fastify, { FastifyBaseLogger, FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
 import { type AcmeProvider, fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 
+import { configureAjvFormats } from './ajv-formats.js'
 import { type AuditLoggerConfig, initAuditLogger } from '../logger/audit-logger.js'
 import { getSystemLogger } from '../logger/system-logger.js'
 
 const DEFAULT_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const DEFAULT_AUDIT_MAX_RECORDS = 100_000
-
-const ajvFormatsPlugin = (ajv: Ajv) => {
-    if (ajv.getKeyword('formatMaximum') === undefined) formatsPlugin.default(ajv)
-    if (ajv.formats?.uuid === undefined) {
-        ajv.addFormat('uuid', /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
-    }
-    return ajv
-}
 
 installIntoGlobal()
 
@@ -80,7 +71,7 @@ export async function runServer({
         const httpServer = fastify({
             loggerInstance: getSystemLogger('http', { debug }) as FastifyBaseLogger,
             ajv: {
-                plugins: [ajvFormatsPlugin],
+                plugins: [configureAjvFormats],
                 customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             }
         })
@@ -92,7 +83,7 @@ export async function runServer({
             await httpServer.register(fastifyCompress)
             await httpServer.register(fastifySensible)
             await httpServer.register(fastifyResponseValidation, {
-                ajv: { plugins: [ajvFormatsPlugin], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+                ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             })
 
             await init(httpServer)
@@ -127,7 +118,7 @@ export async function runServer({
             },
             loggerInstance: getSystemLogger('https', { debug }) as FastifyBaseLogger,
             ajv: {
-                plugins: [ajvFormatsPlugin],
+                plugins: [configureAjvFormats],
                 customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             }
         })
@@ -143,7 +134,7 @@ export async function runServer({
         await httpsServer.register(fastifyCompress)
         await httpsServer.register(fastifySensible)
         await httpsServer.register(fastifyResponseValidation, {
-            ajv: { plugins: [ajvFormatsPlugin], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
+            ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
         })
 
         await init(httpsServer)

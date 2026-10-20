@@ -13,3 +13,4 @@
 - Develop each cohesive feature as a directory (for example, `src/back/logger/`) with a `module.ts` entry point exporting an uppercase `<FEATURE>_MODULE` object, such as `LOGGER_MODULE`.
 - Put optional integration factories on that feature object using `makeCli()`, `makeDevCli()`, `makeRpc()`, `makeAdmRpc()`, or `makeAdm()` as needed. Omit facets a feature does not provide; do not add empty placeholder methods.
 - Keep feature implementation and its integration factories inside the feature directory. Compose selected facets in the application entry point; development-only commands belong to `DevCliEngine` and should stay out of production CLI registration.
+- Never publish packages to npm or another registry. The user performs `npm publish` and equivalent release commands; agents may prepare and locally verify a package but must not upload it.
