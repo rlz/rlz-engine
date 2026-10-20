@@ -34,7 +34,7 @@ Each backend feature lives in a cohesive directory and exposes an uppercase `<FE
 | `AUTH_MODULE`        | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
 | `CERTIFICATE_MODULE` | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | ACME account registration and certificate status                    |
 | `HTTP_MODULE`        | `makeCli(params, options?)`               | `http start` server command                                         |
-| `LOGGER_MODULE`      | `makeCli()`, `makeAdmRpc()`               | Audit-log reader command and protected audit query endpoint         |
+| `LOGGER_MODULE`      | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | Audit-log reader command and protected audit query endpoint         |
 | `RPC_MODULE`         | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
 
 The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI, audit-log viewer, and certificate-status module are available as opt-in modules.
@@ -210,7 +210,24 @@ Structured fields are persisted as provided; do not include passwords, admin sec
 - `useAuthState` holds persisted authentication state.
 - `cacheLastResult()` wraps a function to cache its last result.
 
-These are building blocks for an application UI. The package does not provide a complete application shell or the planned administration interface.
+These are building blocks for an application UI. `AdminApp` provides a responsive administration shell with a desktop sidebar and a mobile navigation drawer. Register `AdmModule` values with the shell; each module supplies its own title and component, and may declare child entries in `navigation`.
+
+```tsx
+import { AdminApp, type AdmModule } from 'rlz-engine/client/adm/admin.js'
+
+const modules: AdmModule[] = [
+    { name: 'engines', title: 'Engines', component: Engines, verify },
+    {
+        name: 'operations', title: 'Operations', component: Operations, verify,
+        navigation: [
+            { name: 'strategies', title: 'Strategies', component: Strategies },
+            { name: 'logs', title: 'Logs', component: Logs }
+        ]
+    }
+]
+
+<AdminApp modules={modules} />
+```
 
 ## Shared utilities
 
