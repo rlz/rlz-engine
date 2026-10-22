@@ -106,6 +106,8 @@ await runServer({
 
 `domain`, `certDir`, and `staticDir` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, `acmeProvider`, and `plugins`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
 
+Both HTTP servers redact request-body fields whose names contain `password`, `token`, `secret`, or `authorization` before Fastify serializes request data for logging. Redaction affects serialized output and keeps the values available to route handlers.
+
 By default, non-debug production writes audit logs to `logs.sqlite`. Development and debug mode use colored console output. Set `auditSqlite: true` (or pass `--audit-sqlite` to `http start`) to write SQLite records alongside console output. Retention defaults to 30 days and the maximum record count defaults to 100,000.
 
 ## RPC endpoints and generated clients
@@ -216,9 +218,9 @@ These are building blocks for an application UI. `AdminApp` provides a responsiv
 import { AdminApp, type AdmModule } from 'rlz-engine/client/adm/admin.js'
 
 const modules: AdmModule[] = [
-    { name: 'engines', title: 'Engines', component: Engines, verify },
+    { name: 'engines', title: 'Engines', component: Engines },
     {
-        name: 'operations', title: 'Operations', component: Operations, verify,
+        name: 'operations', title: 'Operations', component: Operations,
         navigation: [
             { name: 'strategies', title: 'Strategies', component: Strategies },
             { name: 'logs', title: 'Logs', component: Logs }
@@ -228,6 +230,8 @@ const modules: AdmModule[] = [
 
 <AdminApp modules={modules} />
 ```
+
+Administration modules can use the shared in-memory auth state for protected RPC calls. Pair each `setAdminSecret()` call with `clearAdminSecret()` for the same owner; `getAdminAuth()` returns the current `AdmAuthParam` or throws when no module owns an authenticated session.
 
 ## Shared utilities
 

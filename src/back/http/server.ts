@@ -19,6 +19,7 @@ import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
 
 import { configureAjvFormats } from './ajv-formats.js'
+import { addRequestBodyRedactionHook } from './request-logging.js'
 import { type AuditLoggerConfig, initAuditLogger } from '../logger/audit-logger.js'
 import { getSystemLogger } from '../logger/system-logger.js'
 
@@ -80,6 +81,7 @@ export async function runServer({
                 customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             }
         })
+        addRequestBodyRedactionHook(httpServer)
         if (!production) {
             await httpServer.register(fastifyCookie)
             await httpServer.register(fastifyCors, {
@@ -127,6 +129,7 @@ export async function runServer({
                 customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             }
         })
+        addRequestBodyRedactionHook(httpsServer)
 
         await httpsServer.register(fastifyCookie)
 
