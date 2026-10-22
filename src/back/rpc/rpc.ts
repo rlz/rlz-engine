@@ -236,3 +236,12 @@ export class AdmRpcPluginBuilder<OptsT extends AdmRpcPluginOptions = AdmRpcPlugi
 export function admRpc<OptsT extends AdmRpcPluginOptions = AdmRpcPluginOptions>(name: string) {
     return new AdmRpcPluginBuilder<OptsT>(name)
 }
+
+/** Reserved administrative RPC group used by AdminApp to verify an admin secret. */
+export const ADM_AUTH_RPC = admRpc('auth').add({
+    name: 'verify',
+    v: 1,
+    bodySchema: z.object({}),
+    respSchema: z.object({ ok: z.literal(true) }),
+    action: () => ({ ok: true as const })
+})

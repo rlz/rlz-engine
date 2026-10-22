@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyPluginCallback, FastifyPluginOptions } from 'fastify'
 
 import { CliEngine, type CliModule, DevCliEngine } from '../cli/cli-engine.js'
-import type { AdmRpcPluginBuilder, RpcPluginBuilder } from '../rpc/rpc.js'
+import { ADM_AUTH_RPC, type AdmRpcPluginBuilder, type RpcPluginBuilder } from '../rpc/rpc.js'
 import type { AdmModule } from '../../client/adm/admin.js'
 
 /**
@@ -28,6 +28,7 @@ export function composeModules(...facets: readonly ModuleFacets[]) {
     const devCliModules = facets.flatMap(({ devCli = [] }) => devCli)
     const rpcBuilders = facets.flatMap(({ rpc = [] }) => rpc)
     const admRpcBuilders = facets.flatMap(({ admRpc = [] }) => admRpc)
+    const registeredAdmRpcBuilders = [ADM_AUTH_RPC, ...admRpcBuilders]
     const admModules = facets.flatMap(({ adm = [] }) => adm)
     const rpcOptions = Object.assign({}, ...facets.map(({ rpcOptions = {} }) => rpcOptions))
     const admRpcOptions = Object.assign({}, ...facets.map(({ admRpcOptions = {} }) => admRpcOptions))
@@ -45,7 +46,7 @@ export function composeModules(...facets: readonly ModuleFacets[]) {
         'RPC plugin'
     )
     assertUniqueNames(
-        admRpcBuilders.map(({ name }) => name),
+        registeredAdmRpcBuilders.map(({ name }) => name),
         'administrative RPC plugin'
     )
     assertUniqueNames(
@@ -78,7 +79,7 @@ export function composeModules(...facets: readonly ModuleFacets[]) {
 
         /** Register admin-secret-protected RPC plugins on a Fastify server. */
         async registerAdmRpc(server: FastifyInstance): Promise<void> {
-            for (const builder of admRpcBuilders) {
+            for (const builder of registeredAdmRpcBuilders) {
                 await server.register(builder.makeFastifyPlugin() as unknown as FastifyPluginCallback, admRpcOptions[builder.name])
             }
         }

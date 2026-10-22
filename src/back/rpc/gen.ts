@@ -1,7 +1,7 @@
 import ts, { NewLineKind, ScriptKind, ScriptTarget } from 'typescript'
 import { createAuxiliaryTypeStore, zodToTs } from 'zod-to-ts'
 
-import { AdmRpcEndpointInfo, AdmRpcPluginBuilder, RpcEndpointInfo, RpcPluginBuilder } from './rpc.js'
+import { ADM_AUTH_RPC, AdmRpcEndpointInfo, AdmRpcPluginBuilder, RpcEndpointInfo, RpcPluginBuilder } from './rpc.js'
 
 const F = ts.factory
 
@@ -10,26 +10,47 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
         callFunction: 'rpcCall',
         clientName: 'RPC_CLIENT',
         importNames: ['rpcCall'],
+        rpcImportPath: 'rlz-engine/client/rpc.js',
         endpointInfo: (builder) => builder.endpoints,
         authParams: () => []
     })
 }
 
 export function generateAdmClient(fileName: string, ...rpcBuilders: readonly AdmRpcPluginBuilder[]) {
-    return generateTypedClient(fileName, rpcBuilders, {
+    const builders = [ADM_AUTH_RPC, ...rpcBuilders]
+    assertUniquePluginNames(builders)
+    return generateAdmClientSource(fileName, builders, 'ADM_RPC_CLIENT', 'rlz-engine/client/rpc.js')
+}
+
+export function generateAdmAuthClient(fileName: string) {
+    return generateAdmClientSource(fileName, [ADM_AUTH_RPC], 'ADM_AUTH_RPC_CLIENT', '../rpc.js')
+}
+
+function generateAdmClientSource(fileName: string, builders: readonly AdmRpcPluginBuilder[], clientName: string, rpcImportPath: string) {
+    return generateTypedClient(fileName, builders, {
         callFunction: 'admRpcCall',
-        clientName: 'ADM_RPC_CLIENT',
+        clientName,
         importNames: ['AdmAuthParam', 'admRpcCall'],
+        rpcImportPath,
         endpointInfo: (builder) => builder.endpoints,
         authParams: () => [{ name: 'auth', type: 'AdmAuthParam' }],
         authArgument: () => F.createIdentifier('auth')
     })
 }
 
+function assertUniquePluginNames(builders: readonly { name: string }[]): void {
+    const seen = new Set<string>()
+    for (const { name } of builders) {
+        if (seen.has(name)) throw new Error(`administrative RPC plugin already composed: ${name}`)
+        seen.add(name)
+    }
+}
+
 interface ClientGeneratorOptions<BuilderT extends { name: string }> {
     callFunction: string
     clientName: string
     importNames: readonly string[]
+    rpcImportPath: string
     endpointInfo: (builder: BuilderT) => readonly (RpcEndpointInfo | AdmRpcEndpointInfo)[]
     authParams: (endpoint: RpcEndpointInfo | AdmRpcEndpointInfo) => { name: string; type: string }[]
     authArgument?: (endpoint: RpcEndpointInfo | AdmRpcEndpointInfo) => ts.Expression
@@ -59,7 +80,7 @@ function generateTypedClient<BuilderT extends { name: string }>(
                         options.importNames.map((name) => F.createImportSpecifier(false, undefined, F.createIdentifier(name)))
                     )
                 ),
-                F.createStringLiteral('rlz-engine/client/rpc.js'),
+                F.createStringLiteral(options.rpcImportPath),
                 undefined
             )
         )

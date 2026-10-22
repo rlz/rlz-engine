@@ -21,13 +21,13 @@ import { Menu as MenuIcon } from '@mui/icons-material'
 import React, { type ComponentType, type ReactNode, useMemo, useState } from 'react'
 
 import type { AdmAuthParam } from '../rpc.js'
+import { ADM_AUTH_RPC_CLIENT } from './rpc-client.gen.js'
 
 export interface AdmModule {
     /** Stable unique name used to identify this module and its navigation items. */
     name: string
     title: string
     component: ComponentType<{ auth: AdmAuthParam }>
-    verify: (auth: AdmAuthParam) => Promise<void>
     /** Optional module-owned navigation entries rendered by AdminApp. */
     navigation?: readonly AdmNavigationItem[]
 }
@@ -87,7 +87,7 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
         }
         setError('')
         try {
-            if (modules[0]) await modules[0].verify({ adminSecret: candidate })
+            await ADM_AUTH_RPC_CLIENT.auth.verify({ adminSecret: candidate }, {})
             setSecret(candidate)
             setDraft('')
             setAuthKey((key) => key + 1)

@@ -15,7 +15,8 @@ import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
 import { CSRF_TOKEN_HEADER, makeCsrfToken, verifyCsrfToken } from '../src/back/auth/csrf.js'
 import { getAuditLogger, initAuditLogger } from '../src/back/logger/audit-logger.js'
 import { LOGGER_MODULE } from '../src/back/logger/module.js'
-import { generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
+import { composeModules } from '../src/back/module/composer.js'
+import { generateAdmAuthClient, generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
 import { admRpc, rpc } from '../src/back/rpc/rpc.js'
 
 describe('RPC contracts', () => {
@@ -176,6 +177,59 @@ describe('RPC contracts', () => {
         expect(generated).toContain('RpcRespAuditLogsV1')
         expect(generated).toContain('logs: async (auth: AdmAuthParam, body: RpcBodyAuditLogsV1)')
         expect(generated).toContain('ADM_RPC_CLIENT')
+        expect(generated).toContain('RpcBodyAuthVerifyV1')
+        expect(generated).toContain('auth: { verify: async (auth: AdmAuthParam, body: RpcBodyAuthVerifyV1): Promise<RpcRespAuthVerifyV1>')
+    })
+
+    it('generates the engine-owned auth client with a relative RPC transport import', () => {
+        const generated = generateAdmAuthClient('src/client/adm/rpc-client.gen.ts')
+        expect(generated).toContain('from "../rpc.js"')
+        expect(generated).toContain('ADM_AUTH_RPC_CLIENT')
+        expect(generated).toContain('auth: { verify: async (auth: AdmAuthParam, body: RpcBodyAuthVerifyV1)')
+    })
+
+    it('reports the standard auth RPC as a duplicate plugin name', () => {
+        const builder = admRpc('auth').add({
+            name: 'custom-verify',
+            v: 1,
+            bodySchema: z.object({}),
+            respSchema: z.object({ ok: z.boolean() }),
+            action: () => ({ ok: true })
+        })
+
+        expect(() => generateAdmClient('admin-client.ts', builder)).toThrow('administrative RPC plugin already composed: auth')
+        expect(() => composeModules({ admRpc: [builder] })).toThrow('administrative RPC plugin already composed: auth')
+    })
+
+    it('registers one standard admin-secret verification endpoint during composition', async () => {
+        const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-adm-auth-rpc-'))
+        const secret = 'a-valid-administrative-secret'
+        await writeAdminSecretHash(join(workingDirectory, 'auth', 'admin-secret'), secret)
+        const builder = admRpc('audit').add({
+            name: 'status',
+            v: 1,
+            bodySchema: z.object({}),
+            respSchema: z.object({ available: z.boolean() }),
+            action: () => ({ available: true })
+        })
+        const app = fastify()
+        await app.register(sensible)
+        await composeModules({ admRpc: [builder], admRpcOptions: { auth: { workingDirectory } } }).registerAdmRpc(app)
+
+        try {
+            expect((await app.inject({ method: 'POST', url: '/.adm/rpc/auth_verify_v1', payload: {} })).statusCode).toBe(403)
+            const response = await app.inject({
+                method: 'POST',
+                url: '/.adm/rpc/auth_verify_v1',
+                headers: { authorization: `Bearer ${secret}` },
+                payload: {}
+            })
+            expect(response.statusCode).toBe(200)
+            expect(response.json()).toEqual({ ok: true })
+        } finally {
+            await app.close()
+            await rm(workingDirectory, { recursive: true, force: true })
+        }
     })
 
     it('protects administrative RPC routes with the admin Bearer secret', async () => {

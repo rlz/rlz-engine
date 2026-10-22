@@ -6,5 +6,5 @@
     "trailingComma": "none",
     "printWidth": 140,
     "sortPackageJson": false,
-    "ignorePatterns": [".git", ".pnpm-store", "dist", "node_modules", "package-lock.json"]
+    "ignorePatterns": [".git", ".pnpm-store", "dist", "node_modules", "package-lock.json", "**/*.gen.ts"]
 }

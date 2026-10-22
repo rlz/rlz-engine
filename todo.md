@@ -3,6 +3,7 @@
 Future work, kept separate from current behavior. Add only agreed or clearly actionable items and update the list as work is completed.
 
 - [x] Prepare `rlz-engine@1.1.0` with responsive `AdminApp` navigation and module-owned child navigation. `follower` keeps module registrations outside `main.tsx`; its installed dependency needs the release before it receives the new shell behavior. The package is prepared locally but not published.
+- [x] `AdminApp` now verifies the admin secret through the standard `auth.verify` endpoint registered by `composeModules()`; administrative modules no longer need duplicate `verify` functions. Included in the unpublished `1.1.0` package.
 
 - [x] Ensure the HTTP server registers AJV standard formats even when an existing Ajv instance already has format comparison keywords; covered the `date-time` schema regression.
 

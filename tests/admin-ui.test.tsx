@@ -17,14 +17,12 @@ describe('administration module navigation', () => {
                 name: 'operations',
                 title: 'Operations',
                 component: ModuleScreen,
-                verify: async () => {},
                 navigation: [{ name: 'settings', title: 'Settings', component: NavigationScreen }]
             },
             {
                 name: 'audit',
                 title: 'Audit log',
-                component: ModuleScreen,
-                verify: async () => {}
+                component: ModuleScreen
             }
         ]
 

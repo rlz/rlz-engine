@@ -1,17 +1,13 @@
 import { makeAuditLogAdmRpc } from './adm-rpc.js'
 import { makeAuditLogCliModule } from './cli.js'
 import { AuditLogs } from '../../client/adm/audit-logs.js'
-import { admRpcCall } from '../../client/rpc.js'
 import type { AdmModule } from '../../client/adm/admin.js'
 
 function makeAdm(): AdmModule {
     return {
         name: 'audit',
         title: 'Audit log',
-        component: AuditLogs,
-        verify: async (auth) => {
-            await admRpcCall(auth, 'audit', 'logs', 1, { limit: 1, offset: 0 })
-        }
+        component: AuditLogs
     }
 }
 
