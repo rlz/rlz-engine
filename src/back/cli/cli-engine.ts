@@ -1,5 +1,6 @@
 import { command, run as runCommand, subcommands } from 'cmd-ts'
 import type { ArgParser, ParsingInto } from 'cmd-ts/dist/esm/argparser.js'
+import type { RlzEngine } from '../engine.js'
 
 type CliArgs = Record<string, ArgParser<any>>
 type ParsedCliArgs<Args extends CliArgs> = { [Key in keyof Args]: ParsingInto<Args[Key]> }
@@ -8,14 +9,14 @@ type ParsedCliArgs<Args extends CliArgs> = { [Key in keyof Args]: ParsingInto<Ar
 export interface CliCommand {
     readonly description: string
     readonly args?: Readonly<CliArgs>
-    readonly handler: (args: any) => void | Promise<void>
+    readonly handler: (args: any, engine: RlzEngine) => void | Promise<void>
 }
 
 /** Define a CLI command while inferring its parsed handler arguments from cmd-ts parsers. */
 export function cliCommand<Args extends CliArgs>(config: {
     readonly description: string
     readonly args: Args
-    readonly handler: (args: ParsedCliArgs<Args>) => void | Promise<void>
+    readonly handler: (args: ParsedCliArgs<Args>, engine: RlzEngine) => void | Promise<void>
 }): CliCommand {
     return config
 }
@@ -55,7 +56,7 @@ export class CliEngine {
     }
 
     /** Parse and execute arguments, defaulting to the current process arguments. */
-    async run(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
+    async run(argv: readonly string[] = process.argv.slice(2), engine: RlzEngine): Promise<void> {
         const modules = Object.fromEntries(
             [...this.modules].map(([name, module]) => [
                 name,
@@ -69,7 +70,7 @@ export class CliEngine {
                                 name: commandName,
                                 description: definition.description,
                                 args: { ...definition.args },
-                                handler: definition.handler
+                                handler: (args) => definition.handler(args, engine)
                             })
                         ])
                     )

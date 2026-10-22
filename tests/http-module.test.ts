@@ -5,23 +5,23 @@ const { runServerMock } = vi.hoisted(() => ({ runServerMock: vi.fn() }))
 vi.mock('../src/back/http/server.js', () => ({ runServer: runServerMock }))
 
 import { HTTP_MODULE } from '../src/back/http/module.js'
+import { rlzEngine } from '../src/back/engine.js'
 
 describe('HTTP module CLI', () => {
     beforeEach(() => {
         runServerMock.mockReset()
     })
 
-    it('passes plugins to the server and runs lifecycle hooks in order', async () => {
+    it('passes resolved RPC lists in server options and runs lifecycle hooks in order', async () => {
         const events: string[] = []
         const shutdown = vi.fn(async () => {})
-        const plugin = vi.fn(async () => {})
+        const engine = await rlzEngine()
         runServerMock.mockImplementation(async () => {
             events.push('runServer')
             return shutdown
         })
 
         const module = HTTP_MODULE.makeCli(() => ({ production: false, domain: 'localhost', certDir: './certs', staticDir: './web' }), {
-            plugins: [plugin],
             before: () => {
                 events.push('before')
             },
@@ -31,7 +31,7 @@ describe('HTTP module CLI', () => {
             }
         })
 
-        await module.commands.start.handler({ debug: true, auditSqlite: true })
+        await module.commands.start.handler({ debug: true, auditSqlite: true }, engine)
 
         expect(events).toEqual(['before', 'runServer', 'after'])
         expect(runServerMock).toHaveBeenCalledWith({
@@ -41,7 +41,8 @@ describe('HTTP module CLI', () => {
             staticDir: './web',
             debug: true,
             auditSqlite: true,
-            plugins: [plugin]
+            rpc: engine.rpc,
+            admRpc: engine.admRpc
         })
     })
 
@@ -52,7 +53,7 @@ describe('HTTP module CLI', () => {
             { before: () => Promise.reject(error) }
         )
 
-        await expect(module.commands.start.handler({ debug: false, auditSqlite: false })).rejects.toBe(error)
+        await expect(module.commands.start.handler({ debug: false, auditSqlite: false }, await rlzEngine())).rejects.toBe(error)
         expect(runServerMock).not.toHaveBeenCalled()
     })
 
@@ -65,7 +66,7 @@ describe('HTTP module CLI', () => {
             { after: () => Promise.reject(error) }
         )
 
-        await expect(module.commands.start.handler({ debug: false, auditSqlite: false })).rejects.toBe(error)
+        await expect(module.commands.start.handler({ debug: false, auditSqlite: false }, await rlzEngine())).rejects.toBe(error)
         expect(shutdown).toHaveBeenCalledOnce()
     })
 })

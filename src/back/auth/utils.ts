@@ -1,4 +1,4 @@
-import { httpErrors } from '@fastify/sensible'
+import { RpcError } from '../rpc/rpc.js'
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { Binary, MongoServerError } from 'mongodb'
 import { uuidv7 } from 'uuidv7'
@@ -26,7 +26,7 @@ export async function signup(storage: AuthStorage, name: string, email: string, 
         await storage.createUser(id, name, email, new Binary(salt), new Binary(hash), PASSWORD_HASH_VERSION)
     } catch (e) {
         if (e instanceof MongoServerError && e.code === 11000) {
-            throw httpErrors.conflict()
+            throw new RpcError(409, 'Conflict')
         }
         throw e
     }

@@ -1,4 +1,4 @@
-import { httpErrors } from '@fastify/sensible'
+import { RpcError } from '../rpc/rpc.js'
 import { createHash, randomBytes } from 'node:crypto'
 import { Binary } from 'mongodb'
 
@@ -45,17 +45,17 @@ export async function authenticateSession(
 ): Promise<AuthenticatedSession> {
     const sessionId = context.request.cookies[SESSION_COOKIE_NAME]
     if (typeof sessionId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(sessionId)) {
-        throw httpErrors.forbidden()
+        throw new RpcError(403, 'Forbidden')
     }
 
     const sessionHash = hashSessionId(sessionId)
     const session = await storage.getSession(sessionHash, new Date(), idleTimeoutMs)
-    if (session === null) throw httpErrors.forbidden()
+    if (session === null) throw new RpcError(403, 'Forbidden')
 
     const user = await storage.getUserById(session.userId)
     if (user === null) {
         await storage.deleteSession(sessionHash)
-        throw httpErrors.forbidden()
+        throw new RpcError(403, 'Forbidden')
     }
 
     return { user: toAuthUser(user), sessionHash, csrfToken: session.csrfToken }
@@ -65,7 +65,7 @@ export async function authenticateSession(
 export async function verifySessionCsrf(storage: AuthStorage, context: RpcRequestContext, session: AuthenticatedSession): Promise<void> {
     assertSameOrigin(context.request)
     const provided = context.request.headers['x-csrf-token']
-    if (!verifyCsrfToken(session.csrfToken, provided)) throw httpErrors.forbidden()
+    if (!verifyCsrfToken(session.csrfToken, provided)) throw new RpcError(403, 'Forbidden')
     await storage.touchSession(session.sessionHash, new Date())
 }
 

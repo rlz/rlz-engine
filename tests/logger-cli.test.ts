@@ -7,6 +7,7 @@ import { getAuditLogger, initAuditLogger } from '../src/back/logger/audit-logger
 import { formatAuditRecord } from '../src/back/logger/format.js'
 import { LOGGER_MODULE } from '../src/back/logger/module.js'
 import { readAuditLogFile } from '../src/back/logger/sqlite-storage.js'
+import { rlzEngine } from '../src/back/engine.js'
 
 describe('logger CLI', () => {
     let workingDirectory: string | undefined
@@ -44,13 +45,16 @@ describe('logger CLI', () => {
         }) as typeof process.stdout.write)
 
         const cliModule = LOGGER_MODULE.makeCli(workingDirectory)
-        await cliModule.commands.logs.handler({
-            database: 'logs.sqlite',
-            module: 'APP',
-            level: 'info',
-            limit: 100,
-            offset: 0
-        })
+        await cliModule.commands.logs.handler(
+            {
+                database: 'logs.sqlite',
+                module: 'APP',
+                level: 'info',
+                limit: 100,
+                offset: 0
+            },
+            await rlzEngine()
+        )
 
         const expectedPage = readAuditLogFile(join(workingDirectory, 'logs.sqlite'), {
             module: 'APP',

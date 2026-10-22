@@ -1,11 +1,11 @@
 import ts, { NewLineKind, ScriptKind, ScriptTarget } from 'typescript'
 import { createAuxiliaryTypeStore, zodToTs } from 'zod-to-ts'
 
-import { ADM_AUTH_RPC, AdmRpcEndpointInfo, AdmRpcPluginBuilder, RpcEndpointInfo, RpcPluginBuilder } from './rpc.js'
+import { ADM_AUTH_RPC, AdmRpcEndpointInfo, AdmRpc, RpcEndpointInfo, Rpc } from './rpc.js'
 
 const F = ts.factory
 
-export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPluginBuilder[]) {
+export function generateClient(fileName: string, ...rpcBuilders: readonly Rpc[]) {
     return generateTypedClient(fileName, rpcBuilders, {
         callFunction: 'rpcCall',
         clientName: 'RPC_CLIENT',
@@ -16,7 +16,7 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly RpcPlu
     })
 }
 
-export function generateAdmClient(fileName: string, ...rpcBuilders: readonly AdmRpcPluginBuilder[]) {
+export function generateAdmClient(fileName: string, ...rpcBuilders: readonly AdmRpc[]) {
     const builders = [ADM_AUTH_RPC, ...rpcBuilders]
     assertUniquePluginNames(builders)
     return generateAdmClientSource(fileName, builders, 'ADM_RPC_CLIENT', 'rlz-engine/client/rpc.js')
@@ -26,7 +26,7 @@ export function generateAdmAuthClient(fileName: string) {
     return generateAdmClientSource(fileName, [ADM_AUTH_RPC], 'ADM_AUTH_RPC_CLIENT', '../rpc.js')
 }
 
-function generateAdmClientSource(fileName: string, builders: readonly AdmRpcPluginBuilder[], clientName: string, rpcImportPath: string) {
+function generateAdmClientSource(fileName: string, builders: readonly AdmRpc[], clientName: string, rpcImportPath: string) {
     return generateTypedClient(fileName, builders, {
         callFunction: 'admRpcCall',
         clientName,
@@ -41,7 +41,7 @@ function generateAdmClientSource(fileName: string, builders: readonly AdmRpcPlug
 function assertUniquePluginNames(builders: readonly { name: string }[]): void {
     const seen = new Set<string>()
     for (const { name } of builders) {
-        if (seen.has(name)) throw new Error(`administrative RPC plugin already composed: ${name}`)
+        if (seen.has(name)) throw new Error(`administrative RPC group already composed: ${name}`)
         seen.add(name)
     }
 }

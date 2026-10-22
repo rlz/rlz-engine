@@ -3,12 +3,12 @@ import sensible from '@fastify/sensible'
 import formatsPlugin from 'ajv-formats'
 import fastify from 'fastify'
 import { Binary } from 'mongodb'
-import type { FastifyPluginCallback } from 'fastify'
 import { describe, expect, it } from 'vitest'
 
 import { SESSION_COOKIE_NAME } from '../src/back/auth/cookies.js'
 import { AUTH_MODULE } from '../src/back/auth/module.js'
 import { SESSION_ABSOLUTE_TIMEOUT_MS } from '../src/back/auth/session.js'
+import { registerRpcRoutes } from '../src/back/http/server.js'
 import type { AuthStorage } from '../src/back/auth/storage.js'
 
 function getCookiePair(header: string | string[] | undefined): string {
@@ -97,9 +97,7 @@ describe('authentication RPC', () => {
         })
         await app.register(sensible)
         await app.register(fastifyCookie)
-        await app.register(
-            AUTH_MODULE.makeRpc(storage, { sessionIdleTimeoutMs: 60 * 60 * 1000 }).makeFastifyPlugin() as unknown as FastifyPluginCallback
-        )
+        await registerRpcRoutes(app, [AUTH_MODULE.makeRpc(storage, { sessionIdleTimeoutMs: 60 * 60 * 1000 })], [])
         await app.ready()
 
         const originHeaders = { origin: 'http://localhost' }

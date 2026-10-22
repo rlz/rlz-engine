@@ -4,21 +4,17 @@ import fastifyCors from '@fastify/cors'
 import { fastifyResponseValidation } from '@fastify/response-validation'
 import fastifySensible, { httpErrors } from '@fastify/sensible'
 import fastifyStatic from '@fastify/static'
-import fastify, {
-    FastifyBaseLogger,
-    FastifyInstance,
-    FastifyPluginAsync,
-    FastifyPluginCallback,
-    RawReplyDefaultExpression,
-    RawRequestDefaultExpression,
-    RawServerBase
-} from 'fastify'
+import fastify, { FastifyBaseLogger, FastifyInstance, RawReplyDefaultExpression, RawRequestDefaultExpression, RawServerBase } from 'fastify'
 import { type AcmeProvider, fastifyAcmeSecurePlugin, fastifyAcmeUnsecurePlugin, getCertAndKey } from 'fastify-acme'
 import { createReadStream } from 'fs'
 import { installIntoGlobal } from 'iterator-helpers-polyfill'
 import path from 'path'
+import z from 'zod'
 
 import { configureAjvFormats } from './ajv-formats.js'
+import type { AdmRpc, Rpc } from '../rpc/rpc.js'
+import { verifyAdminSecret } from '../auth/admin-secret.js'
+import type { RpcRequestContext } from '../rpc/rpc.js'
 import { addRequestBodyRedactionHook } from './request-logging.js'
 import { type AuditLoggerConfig, initAuditLogger } from '../logger/audit-logger.js'
 import { getSystemLogger } from '../logger/system-logger.js'
@@ -44,8 +40,8 @@ export interface RunServerParams {
     /** Certificate authority used for ACME issuance and renewal. Defaults to Let's Encrypt. */
     acmeProvider?: AcmeProvider
     staticDir: string
-    /** Application routes and integrations, installed on each server instance. */
-    plugins?: readonly (FastifyPluginAsync | FastifyPluginCallback)[]
+    rpc: readonly Rpc[]
+    admRpc: readonly AdmRpc[]
 }
 
 export async function runServer({
@@ -60,7 +56,8 @@ export async function runServer({
     staticDir,
     securePort,
     unsecurePort,
-    plugins = []
+    rpc,
+    admRpc
 }: RunServerParams): Promise<() => Promise<void>> {
     const sqliteConfig = { path: path.resolve('logs.sqlite'), retentionMs: auditRetentionMs, maxRecords: auditMaxRecords }
     const auditLoggerConfig: AuditLoggerConfig =
@@ -93,7 +90,7 @@ export async function runServer({
                 ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
             })
 
-            await registerPlugins(httpServer, plugins)
+            await registerRpcRoutes(httpServer, rpc, admRpc)
 
             addStaticEndpoints(httpServer, staticDir)
 
@@ -145,7 +142,7 @@ export async function runServer({
             ajv: { plugins: [configureAjvFormats], useDefaults: false, coerceTypes: false, allErrors: true, verbose: true }
         })
 
-        await registerPlugins(httpsServer, plugins)
+        await registerRpcRoutes(httpsServer, rpc, admRpc)
 
         httpsServer.all('/rpc/*', async () => {
             return httpErrors.notFound()
@@ -168,13 +165,91 @@ export async function runServer({
     }
 }
 
-async function registerPlugins<S extends RawServerBase>(
+export async function registerRpcRoutes<S extends RawServerBase>(
     server: FastifyInstance<S, RawRequestDefaultExpression<S>, RawReplyDefaultExpression<S>, FastifyBaseLogger>,
-    plugins: readonly (FastifyPluginAsync | FastifyPluginCallback)[]
+    rpc: readonly Rpc[],
+    admRpc: readonly AdmRpc[]
 ) {
-    for (const plugin of plugins) {
-        await server.register(plugin)
+    for (const group of rpc) {
+        for (const endpoint of group.endpoints) {
+            server.post(
+                `/rpc/${group.name}_${endpoint.name}_v${endpoint.v}`,
+                endpointSchemas(endpoint.bodySchema, endpoint.respSchema),
+                async (request, reply) => {
+                    const context = makeRpcContext(request, reply)
+                    const body = request.body as object
+                    const response =
+                        'cookieAuth' in endpoint
+                            ? await runCookieAuthEndpoint(endpoint, body, context)
+                            : await endpoint.action(body, context)
+                    await reply.send(response)
+                }
+            )
+        }
     }
+    for (const builder of admRpc) {
+        for (const endpoint of builder.endpoints) {
+            server.post(
+                `/.adm/rpc/${builder.name}_${endpoint.name}_v${endpoint.v}`,
+                endpointSchemas(endpoint.bodySchema, endpoint.respSchema),
+                async (request, reply) => {
+                    const authHeader = request.headers.authorization
+                    const match = authHeader === undefined ? null : /^Bearer\s+(.+)$/i.exec(authHeader)
+                    if (match === null || !(await verifyAdminSecret(match[1]))) throw httpErrors.forbidden()
+                    await reply.send(await endpoint.action(request.body as object))
+                }
+            )
+        }
+    }
+}
+
+function endpointSchemas(bodySchema: z.ZodType, respSchema: z.ZodType) {
+    return {
+        schema: {
+            body: bodySchema.toJSONSchema({ target: 'draft-07' }),
+            response: { 200: respSchema.toJSONSchema({ target: 'draft-07' }) }
+        }
+    }
+}
+
+function makeRpcContext(
+    request: {
+        headers: RpcRequestContext['request']['headers']
+        cookies?: RpcRequestContext['request']['cookies']
+        protocol: 'http' | 'https'
+        ip: string
+    },
+    reply: {
+        setCookie: RpcRequestContext['reply']['setCookie']
+        clearCookie: RpcRequestContext['reply']['clearCookie']
+    }
+): RpcRequestContext {
+    return {
+        request: {
+            headers: request.headers,
+            cookies: request.cookies ?? {},
+            protocol: request.protocol,
+            ip: request.ip
+        },
+        reply: {
+            setCookie: (name, value, options) => {
+                reply.setCookie(name, value, options)
+            },
+            clearCookie: (name, options) => {
+                reply.clearCookie(name, options)
+            }
+        }
+    }
+}
+
+async function runCookieAuthEndpoint(
+    endpoint: Extract<Rpc['endpoints'][number], { cookieAuth: unknown }>,
+    body: object,
+    context: RpcRequestContext
+) {
+    const user = await endpoint.cookieAuth.authenticate(context)
+    await endpoint.cookieAuth.verifyCsrf(context, user)
+    return endpoint.action(user, body, context)
 }
 
 function addStaticEndpoints<S extends RawServerBase>(

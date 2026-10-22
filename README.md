@@ -27,84 +27,52 @@ import { syncItems } from 'rlz-engine/client/sync.js'
 
 ## Feature modules
 
-Each backend feature lives in a cohesive directory and exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. The object contains only the integration factories that feature supports. Applications invoke the factories for the integrations they want, then pass the returned facet values to `composeModules()`.
+Each backend feature exposes an uppercase `<FEATURE>_MODULE` object from `module.ts`. Applications call the factories they need and pass production facets to `rlzEngine()`.
 
-| Module               | Facets                                    | Purpose                                                             |
-| -------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| `AUTH_MODULE`        | `makeRpc(storage, options?)`, `makeCli()` | Signup/signin/session/logout RPC endpoints and admin secret command |
-| `CERTIFICATE_MODULE` | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | ACME account registration and certificate status                    |
-| `HTTP_MODULE`        | `makeCli(params, options?)`               | `http start` server command                                         |
-| `LOGGER_MODULE`      | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | Audit-log reader command and protected audit query endpoint         |
-| `RPC_MODULE`         | `makeDevCli(options)`                     | Generate user and administrative RPC clients during development     |
+| Module               | Facets                                    | Purpose                                     |
+| -------------------- | ----------------------------------------- | ------------------------------------------- |
+| `AUTH_MODULE`        | `makeRpc(storage, options?)`, `makeCli()` | Authentication RPC and admin-secret command |
+| `CERTIFICATE_MODULE` | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | ACME command and certificate status         |
+| `HTTP_MODULE`        | `makeCli(params, options?)`               | HTTP server command                         |
+| `LOGGER_MODULE`      | `makeCli()`, `makeAdmRpc()`, `makeAdm()`  | Audit-log command, endpoint, and UI         |
+| `RPC_MODULE`         | `makeDevCli(options)`                     | Development-only RPC client generation      |
 
-The composer groups selected operational CLI, development CLI, user RPC, and administrative RPC facets. It rejects duplicate names within each facet kind before startup. It deliberately leaves factory arguments with the application: server settings, route handlers, working directories, and generated-client paths are application-specific. The React administration UI, audit-log viewer, and certificate-status module are available as opt-in modules.
+`rlzEngine()` resolves server facets (`cli`, `rpc`, and `admRpc`) passed as values, arrays, or promises. Administrative UI modules are client-side inputs to `AdminApp`; they are not part of the server engine. `rlzDevEngine(engine, commands)` wraps an initialized engine instance and adds commands to its CLI tree. Only the development entry point imports this wrapper, keeping its commands out of the production bundle. HTTP lifecycle hooks remain in `HTTP_MODULE.makeCli()`.
 
-### CLI composition
+### CLI entry points
 
-`CliEngine` provides operational commands. `DevCliEngine` is a separate entry point for development commands, such as generated-client updates.
+The production entry point uses `rlzEngine()` and only registers production commands. The dev-only `rlzDevEngine()` wraps an initialized engine instance and adds development commands; the production engine has no method to add them.
 
 ```ts
-import { CliEngine, DevCliEngine } from 'rlz-engine/back/cli/cli-engine.js'
-import { composeModules } from 'rlz-engine/back/module/composer.js'
-import { AUTH_MODULE } from 'rlz-engine/back/auth/module.js'
-import { CERTIFICATE_MODULE } from 'rlz-engine/back/certificate/module.js'
-import { HTTP_MODULE } from 'rlz-engine/back/http/module.js'
-import { LOGGER_MODULE } from 'rlz-engine/back/logger/module.js'
+import { rlzEngine } from 'rlz-engine/back/engine.js'
+import { rlzDevEngine } from 'rlz-engine/back/dev-engine.js'
 import { RPC_MODULE } from 'rlz-engine/back/rpc/module.js'
 
-const applicationPlugin = async (server) => {
-    await server.register(applicationRoutes)
-}
+const engine = await rlzEngine({ cli: applicationCliModules, rpc: userRpcPlugins, admRpc: adminRpcPlugins })
 
-const applicationModules = composeModules({
-    cli: [
-        AUTH_MODULE.makeCli(),
-        CERTIFICATE_MODULE.makeCli(),
-        HTTP_MODULE.makeCli(serverParams, { plugins: [applicationPlugin] }),
-        LOGGER_MODULE.makeCli()
-    ],
-    rpc: userRpcPlugins,
-    admRpc: [LOGGER_MODULE.makeAdmRpc()]
-})
+// main.ts
+await engine.run()
 
-const cli = applicationModules.registerCli(new CliEngine('app.js'))
-await cli.run()
-
-const devModules = composeModules({
-    devCli: [
-        RPC_MODULE.makeDevCli({
-            rpcBuilders: userRpcPlugins,
-            admRpcBuilders: adminRpcPlugins,
-            rpcOutput: './src/client/generated/rpc-client.ts',
-            admRpcOutput: './src/client/generated/admin-rpc-client.ts'
-        })
-    ]
-})
-const devCli = devModules.registerDevCli(new DevCliEngine('dev.js'))
-await devCli.run()
+// devMain.ts, using the same engine configuration in its own process:
+const devEngine = await rlzDevEngine(
+    engine,
+    RPC_MODULE.makeDevCli({
+        rpcOutput: './src/client/rpc-client.gen.ts',
+        admRpcOutput: './src/client/adm/rpc-client.gen.ts'
+    })
+)
+await devEngine.run()
 ```
 
-`composeModules()` accepts any combination of `cli`, `devCli`, `rpc`, and `admRpc` arrays; omit facets the application does not use. For RPC builders that need Fastify plugin options, provide `rpcOptions` or `admRpcOptions`, keyed by each builder's `name` (for example, `{ audit: { workingDirectory: appDirectory } }`). The returned object has `registerCli()`, `registerDevCli()`, `registerRpc()`, and `registerAdmRpc()` methods. RPC registration methods are asynchronous and register plugins in array order. Duplicate module or plugin names within the same category throw during composition. Operational and development commands remain separate so client generation does not need to be included in production command setup. Each engine generates nested help from module and command descriptions. For example, `app.js --help`, `app.js http --help`, and `app.js http start --help` show progressively narrower command help.
+`rlzEngine()` resolves all facets and exposes the resulting `cli`, `rpc`, and `admRpc` lists; the administrative list includes the standard `auth.verify` endpoint. RPC dependencies are captured by endpoint declarations, often through asynchronous facet factories. RPC declarations contain no Fastify registration code. Registration follows input order. Each CLI engine builds nested help from module and command descriptions.
 
-`AUTH_MODULE.makeRpc(storage, options?)` requires an initialized `AuthStorage` and returns the authentication RPC builder. `AUTH_MODULE.makeCli(workingDirectory?)` accepts a directory or a callback returning one; it defaults to the current working directory. `HTTP_MODULE.makeCli(params, options?)` accepts `RunServerParams` without `plugins`, or a callback that returns those settings. `options.plugins` lists Fastify plugins registered on each server; no server initialization callback is needed. `options.before` runs after settings resolve and before server startup; `options.after` runs after the server is listening and receives its shutdown function. If `before` fails, the server is not started. If `after` fails, the module shuts down the server before rethrowing. These hooks let applications attach lifecycle work without replacing the built-in HTTP command. `LOGGER_MODULE.makeCli(workingDirectory?)` accepts the directory containing `logs.sqlite` and defaults to the current working directory. `RPC_MODULE.makeDevCli(options)` requires at least one user or administrative RPC builder and an output path for each configured builder kind.
+`HTTP_MODULE.makeCli(params, options?)` accepts server settings or a callback returning them. `http start` receives the active engine and automatically registers its user and administrative RPC modules on the HTTP server. `options.before` runs before startup; `options.after` runs after listening and receives the shutdown function. If `after` fails, the server shuts down before the error is rethrown. `RPC_MODULE.makeDevCli(options)` belongs in the separate development entry point.
 
 ## HTTP server
 
-The server implementation is in `back/http/server.js`. Its `runServer()` function accepts `RunServerParams`:
+The server implementation is in `back/http/server.js`. Its low-level `runServer()` function accepts one `RunServerParams` object containing server settings and resolved `rpc` and `admRpc` lists. `HTTP_MODULE.makeCli()` passes those lists from the active engine automatically.
 
-```ts
-import { runServer } from 'rlz-engine/back/http/server.js'
-
-await runServer({
-    production: process.env.NODE_ENV === 'production',
-    domain: 'example.com',
-    certDir: './certs',
-    staticDir: './dist',
-    plugins: [applicationPlugin]
-})
-```
-
-`domain`, `certDir`, and `staticDir` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, `acmeProvider`, and `plugins`. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
+`domain`, `certDir`, and `staticDir` are required. Optional settings include `debug`, `unsecurePort`, `securePort`, `auditRetentionMs`, `auditMaxRecords`, `auditSqlite`, and `acmeProvider`. The server registers all RPC modules held by the engine. Development serves HTTP with CORS and static files. Production runs an HTTP-01 challenge and redirect server alongside a TLS server with HTTP/2 and HTTP/1 support, and renews certificates periodically. CORS is available only in development and does not allow credentials; production serves static files and RPC from the same HTTPS origin. The returned shutdown function closes the servers and logging storage. The `http start` CLI command keeps the process active until a termination signal.
 
 Both HTTP servers redact request-body fields whose names contain `password`, `token`, `secret`, or `authorization` before Fastify serializes request data for logging. Redaction affects serialized output and keeps the values available to route handlers.
 
@@ -112,10 +80,12 @@ By default, non-debug production writes audit logs to `logs.sqlite`. Development
 
 ## RPC endpoints and generated clients
 
-Define user RPC plugins with `rpc()` and administrative plugins with `admRpc()`. Every endpoint has a version, a name, Zod body and response schemas, and an action. User endpoints may be anonymous or use a `cookieAuth` policy with both `authenticate` and `verifyCsrf` callbacks. The cookie-auth callbacks receive request cookies/headers and safe reply cookie methods via `RpcRequestContext`.
+Define user RPC groups with `rpc()` and administrative groups with `admRpc()`. Every endpoint has a version, a name, Zod body and response schemas, and an action. User endpoints may be anonymous or use a `cookieAuth` policy with both `authenticate` and `verifyCsrf` callbacks. The cookie-auth callbacks receive request cookies/headers and safe reply cookie methods via `RpcRequestContext`. The HTTP server translates these declarations into Fastify routes.
 
 ```ts
 import z from 'zod'
+import { rlzEngine } from 'rlz-engine/back/engine.js'
+import { HTTP_MODULE } from 'rlz-engine/back/http/module.js'
 import { rpc, admRpc } from 'rlz-engine/back/rpc/rpc.js'
 import { authenticateSession, SESSION_IDLE_TIMEOUT_MS, verifySessionCsrf } from 'rlz-engine/back/auth/session.js'
 
@@ -142,12 +112,22 @@ export const adminRpc = admRpc('operations').add({
 })
 ```
 
-Pass the generated Fastify plugins to `HTTP_MODULE`; the engine registers them on both development and production servers:
+Register RPC declarations with `rlzEngine()`; `http start` serves them on development and production servers automatically:
 
 ```ts
-HTTP_MODULE.makeCli(serverParams, {
-    plugins: [userRpc.makeFastifyPlugin(), adminRpc.makeFastifyPlugin()]
+const engine = await rlzEngine({
+    rpc: [userRpc],
+    admRpc: [adminRpc],
+    cli: [
+        HTTP_MODULE.makeCli({
+            production: false,
+            domain: 'localhost',
+            certDir: './certs',
+            staticDir: './dist'
+        })
+    ]
 })
+await engine.run(['http', 'start'])
 ```
 
 User endpoints are served at `/rpc/<plugin>_<endpoint>_v<version>`. Authenticated user routes use cookie sessions and require both a session authenticator and a CSRF verifier.
@@ -164,7 +144,7 @@ Administrative endpoints are served at `/.adm/rpc/<plugin>_<endpoint>_v<version>
 
 ## Authentication RPC
 
-`back/auth` contains `AuthStorage`, signup/signin helpers, opaque server-side sessions, and the administrative-secret implementation. `AUTH_MODULE.makeRpc(storage, options?)` provides `signup`, `signin`, `session`, and CSRF-protected `logout` endpoints under `/rpc/auth_*_v1`. Set `options.sessionIdleTimeoutMs` to configure the idle timeout; it defaults to 30 minutes and must be a positive integer no greater than the fixed seven-day absolute timeout. Signup and signin set an HttpOnly session cookie and return the user profile plus a CSRF token. `session` restores the profile and token from the cookie. Session IDs are random, only their SHA-256 hashes are stored, and logout revokes the current session. Auth endpoints require a matching same-origin `Origin` header. Register the builder with `composeModules()` like other RPC feature modules.
+`back/auth` contains `AuthStorage`, signup/signin helpers, opaque server-side sessions, and the administrative-secret implementation. `AUTH_MODULE.makeRpc(storage, options?)` provides `signup`, `signin`, `session`, and CSRF-protected `logout` endpoints under `/rpc/auth_*_v1`. Set `options.sessionIdleTimeoutMs` to configure the idle timeout; it defaults to 30 minutes and must be a positive integer no greater than the fixed seven-day absolute timeout. Signup and signin set an HttpOnly session cookie and return the user profile plus a CSRF token. `session` restores the profile and token from the cookie. Session IDs are random, only their SHA-256 hashes are stored, and logout revokes the current session. Auth endpoints require a matching same-origin `Origin` header. Register the declaration in the `rpc` facets passed to `rlzEngine()`.
 
 `SignupSigninScreen` accepts an `authClient` adapter. Pass callbacks backed by the application's generated `RPC_CLIENT.auth.signup()` and `RPC_CLIENT.auth.signin()` methods:
 
@@ -182,7 +162,7 @@ Login profile state is available through `useAuthState` in `client/state/auth.js
 
 `LOGGER_MODULE.makeCli()` supplies `logger logs`, which reads an existing SQLite audit database in read-only mode. Supported filters are `--from`, `--to`, `--module`, `--level`, `--limit`, and `--offset`.
 
-`LOGGER_MODULE.makeAdmRpc()` creates the `audit_logs_v1` administrative endpoint, which can be registered like other administrative RPC plugins. It accepts optional time, module, level, limit, and offset filters. Pages are newest-first, ordered stably, and capped at 1,000 records; defaults are 100 records and offset 0.
+`LOGGER_MODULE.makeAdmRpc()` creates the `audit_logs_v1` administrative endpoint, which can be registered like other administrative RPC groups. It accepts optional time, module, level, limit, and offset filters. Pages are newest-first, ordered stably, and capped at 1,000 records; defaults are 100 records and offset 0.
 
 Applications can write typed audit events using `getAuditLogger<EventUnion>(module)`:
 

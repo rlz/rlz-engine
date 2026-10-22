@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
 import { CERTIFICATE_MODULE } from '../src/back/certificate/module.js'
+import { registerRpcRoutes } from '../src/back/http/server.js'
 
 describe('certificate administration', () => {
     let workingDirectory: string | undefined
@@ -28,11 +29,12 @@ describe('certificate administration', () => {
         const app = fastify()
         await app.register(sensible)
         await app.register(responseValidation)
-        await app.register(
-            CERTIFICATE_MODULE.makeAdmRpc({ certDir: join(workingDirectory, 'cert'), domain: 'example.com' }).makeFastifyPlugin(),
-            {
-                workingDirectory
-            }
+        const originalDirectory = process.cwd()
+        process.chdir(workingDirectory)
+        await registerRpcRoutes(
+            app,
+            [],
+            [CERTIFICATE_MODULE.makeAdmRpc({ certDir: join(workingDirectory, 'cert'), domain: 'example.com' })]
         )
         await app.ready()
 
@@ -57,6 +59,7 @@ describe('certificate administration', () => {
             expect(response.json()).not.toHaveProperty('privateKey')
         } finally {
             await app.close()
+            process.chdir(originalDirectory)
         }
     })
 })

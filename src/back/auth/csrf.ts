@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 
-import { httpErrors } from '@fastify/sensible'
-import type { FastifyRequest } from 'fastify'
+import type { RpcRequestContext } from '../rpc/rpc.js'
+import { RpcError } from '../rpc/rpc.js'
 
 export const CSRF_TOKEN_HEADER = 'x-csrf-token'
 
@@ -24,21 +24,21 @@ export function verifyCsrfToken(expected: string, provided: string | string[] | 
 }
 
 /** Reject requests whose browser Origin does not match the request's own origin. */
-export function assertSameOrigin(request: Pick<FastifyRequest, 'headers' | 'protocol'>): void {
+export function assertSameOrigin(request: Pick<RpcRequestContext['request'], 'headers' | 'protocol'>): void {
     const originHeader = request.headers.origin
     const hostHeader = request.headers.host
     const origin = Array.isArray(originHeader) ? undefined : originHeader
     const host = Array.isArray(hostHeader) ? undefined : hostHeader
 
     if (origin === undefined || origin === 'null' || host === undefined || !isCanonicalOrigin(origin)) {
-        throw httpErrors.forbidden()
+        throw new RpcError(403, 'Forbidden')
     }
 
     try {
-        if (new URL(origin).origin !== new URL(`${request.protocol}://${host}`).origin) throw httpErrors.forbidden()
+        if (new URL(origin).origin !== new URL(`${request.protocol}://${host}`).origin) throw new RpcError(403, 'Forbidden')
     } catch (error) {
-        if (error instanceof Error && 'statusCode' in error) throw error
-        throw httpErrors.forbidden()
+        if (error instanceof RpcError) throw error
+        throw new RpcError(403, 'Forbidden')
     }
 }
 

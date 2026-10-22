@@ -3,44 +3,36 @@ import { dirname, resolve } from 'node:path'
 
 import { CliModule } from '../cli/cli-engine.js'
 import { generateAdmClient, generateClient } from './gen.js'
-import { AdmRpcPluginBuilder, RpcPluginBuilder } from './rpc.js'
 
-/** Builders and output paths consumed by `RPC_MODULE.makeDevCli()`. */
+/** Output paths consumed by `RPC_MODULE.makeDevCli()`; RPC declarations come from the active engine. */
 export interface RpcClientCliModuleOptions {
-    rpcBuilders?: readonly RpcPluginBuilder[]
-    admRpcBuilders?: readonly AdmRpcPluginBuilder[]
     rpcOutput?: string
     admRpcOutput?: string
 }
 
-/** Development integration for generating typed clients from endpoint builders. */
+/** Development integration for generating typed clients from RPC declarations. */
 export const RPC_MODULE = {
     /** Create the development-only `rpc generate-client` command. */
-    makeDevCli(options: RpcClientCliModuleOptions): CliModule {
-        const rpcBuilders = options.rpcBuilders ?? []
-        const admRpcBuilders = options.admRpcBuilders ?? []
-        if (rpcBuilders.length === 0 && admRpcBuilders.length === 0) {
-            throw new Error('RPC client generation requires at least one user or administrative RPC builder.')
-        }
-
+    makeDevCli(options: RpcClientCliModuleOptions = {}): CliModule {
         return {
             name: 'rpc',
             description: 'Development tools for generated RPC clients.',
             commands: {
                 'generate-client': {
-                    description: 'Generate typed RPC clients from the registered endpoint schemas.',
-                    handler: async () => {
-                        if (rpcBuilders.length > 0) {
+                    description: 'Generate typed RPC clients from the declared endpoint schemas.',
+                    handler: async (_args, engine) => {
+                        const { rpc, admRpc } = engine
+                        if (rpc.length > 0) {
                             if (options.rpcOutput === undefined) {
-                                throw new Error('rpcOutput is required when user RPC builders are configured.')
+                                throw new Error('rpcOutput is required when user RPC declarations are configured.')
                             }
-                            await writeGeneratedFile(options.rpcOutput, generateClient(options.rpcOutput, ...rpcBuilders))
+                            await writeGeneratedFile(options.rpcOutput, generateClient(options.rpcOutput, ...rpc))
                         }
-                        if (admRpcBuilders.length > 0) {
+                        if (admRpc.length > 0) {
                             if (options.admRpcOutput === undefined) {
-                                throw new Error('admRpcOutput is required when administrative RPC builders are configured.')
+                                throw new Error('admRpcOutput is required when administrative RPC declarations are configured.')
                             }
-                            await writeGeneratedFile(options.admRpcOutput, generateAdmClient(options.admRpcOutput, ...admRpcBuilders))
+                            await writeGeneratedFile(options.admRpcOutput, generateAdmClient(options.admRpcOutput, ...admRpc))
                         }
                     }
                 }

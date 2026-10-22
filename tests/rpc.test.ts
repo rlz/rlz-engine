@@ -15,11 +15,35 @@ import { writeAdminSecretHash } from '../src/back/auth/admin-secret.js'
 import { CSRF_TOKEN_HEADER, makeCsrfToken, verifyCsrfToken } from '../src/back/auth/csrf.js'
 import { getAuditLogger, initAuditLogger } from '../src/back/logger/audit-logger.js'
 import { LOGGER_MODULE } from '../src/back/logger/module.js'
-import { composeModules } from '../src/back/module/composer.js'
+import { rlzEngine } from '../src/back/engine.js'
 import { generateAdmAuthClient, generateAdmClient, generateClient } from '../src/back/rpc/gen.js'
-import { admRpc, rpc } from '../src/back/rpc/rpc.js'
+import { registerRpcRoutes } from '../src/back/http/server.js'
+import { admRpc, type AdmRpc, rpc } from '../src/back/rpc/rpc.js'
+
+const differentlyConfiguredAdmRpcBuilders: readonly AdmRpc[] = [
+    admRpc('audit').add({
+        name: 'label',
+        v: 1,
+        bodySchema: z.object({}),
+        respSchema: z.object({ label: z.string() }),
+        action: () => ({ label: 'audit' })
+    }),
+    admRpc('strategies').add({
+        name: 'limit',
+        v: 1,
+        bodySchema: z.object({}),
+        respSchema: z.object({ limit: z.number() }),
+        action: () => ({ limit: 10 })
+    })
+]
 
 describe('RPC contracts', () => {
+    it('accepts administrative builders with different option types', async () => {
+        const engine = await rlzEngine({ admRpc: differentlyConfiguredAdmRpcBuilders })
+        expect(engine).toBeDefined()
+        expect(engine).not.toHaveProperty('admUi')
+    })
+
     it('supports cookie authentication only when the endpoint CSRF verifier accepts the request', async () => {
         const csrfToken = makeCsrfToken()
         const builder = rpc('session').add({
@@ -41,7 +65,7 @@ describe('RPC contracts', () => {
         const app = fastify()
         await app.register(sensible)
         await app.register(fastifyCookie)
-        await app.register(builder.makeFastifyPlugin())
+        await registerRpcRoutes(app, [builder], [])
         await app.ready()
 
         const missingCsrf = await app.inject({
@@ -89,7 +113,7 @@ describe('RPC contracts', () => {
         const app = fastify({ ajv: { customOptions: { useDefaults: false, coerceTypes: false, allErrors: true, verbose: true } } })
         await app.register(sensible)
         await app.register(responseValidation)
-        await app.register(builder.makeFastifyPlugin())
+        await registerRpcRoutes(app, [builder], [])
         await app.ready()
 
         const valid = await app.inject({ method: 'POST', url: '/rpc/example_echo_v2', payload: { value: 'ok' } })
@@ -121,7 +145,7 @@ describe('RPC contracts', () => {
         })
         await app.register(sensible)
         await app.register(responseValidation)
-        await app.register(builder.makeFastifyPlugin())
+        await registerRpcRoutes(app, [builder], [])
         await app.ready()
 
         const valid = await app.inject({
@@ -188,7 +212,7 @@ describe('RPC contracts', () => {
         expect(generated).toContain('auth: { verify: async (auth: AdmAuthParam, body: RpcBodyAuthVerifyV1)')
     })
 
-    it('reports the standard auth RPC as a duplicate plugin name', () => {
+    it('reports the standard auth RPC as a duplicate plugin name', async () => {
         const builder = admRpc('auth').add({
             name: 'custom-verify',
             v: 1,
@@ -197,11 +221,11 @@ describe('RPC contracts', () => {
             action: () => ({ ok: true })
         })
 
-        expect(() => generateAdmClient('admin-client.ts', builder)).toThrow('administrative RPC plugin already composed: auth')
-        expect(() => composeModules({ admRpc: [builder] })).toThrow('administrative RPC plugin already composed: auth')
+        expect(() => generateAdmClient('admin-client.ts', builder)).toThrow('administrative RPC group already composed: auth')
+        await expect(rlzEngine({ admRpc: [builder] })).rejects.toThrow('administrative RPC group already composed: auth')
     })
 
-    it('registers one standard admin-secret verification endpoint during composition', async () => {
+    it('registers one standard admin-secret verification endpoint', async () => {
         const workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-adm-auth-rpc-'))
         const secret = 'a-valid-administrative-secret'
         await writeAdminSecretHash(join(workingDirectory, 'auth', 'admin-secret'), secret)
@@ -214,7 +238,12 @@ describe('RPC contracts', () => {
         })
         const app = fastify()
         await app.register(sensible)
-        await composeModules({ admRpc: [builder], admRpcOptions: { auth: { workingDirectory } } }).registerAdmRpc(app)
+        const originalDirectory = process.cwd()
+        process.chdir(workingDirectory)
+        const engine = await rlzEngine({ admRpc: [builder] })
+        for (const registeredBuilder of engine.admRpc) {
+            await registerRpcRoutes(app, [], [registeredBuilder])
+        }
 
         try {
             expect((await app.inject({ method: 'POST', url: '/.adm/rpc/auth_verify_v1', payload: {} })).statusCode).toBe(403)
@@ -228,6 +257,7 @@ describe('RPC contracts', () => {
             expect(response.json()).toEqual({ ok: true })
         } finally {
             await app.close()
+            process.chdir(originalDirectory)
             await rm(workingDirectory, { recursive: true, force: true })
         }
     })
@@ -247,7 +277,9 @@ describe('RPC contracts', () => {
         const app = fastify()
         await app.register(sensible)
         await app.register(responseValidation)
-        await app.register(builder.makeFastifyPlugin(), { workingDirectory })
+        const originalDirectory = process.cwd()
+        process.chdir(workingDirectory)
+        await registerRpcRoutes(app, [], [builder])
         await app.ready()
 
         try {
@@ -272,6 +304,7 @@ describe('RPC contracts', () => {
             expect(valid.json()).toEqual({ available: true })
         } finally {
             await app.close()
+            process.chdir(originalDirectory)
             await rm(workingDirectory, { recursive: true, force: true })
         }
     })
@@ -293,7 +326,9 @@ describe('RPC contracts', () => {
         const app = fastify({ ajv: { plugins: [formatsPlugin.default as unknown as Plugin<unknown>] } })
         await app.register(sensible)
         await app.register(responseValidation)
-        await app.register(LOGGER_MODULE.makeAdmRpc().makeFastifyPlugin(), { workingDirectory })
+        const originalDirectory = process.cwd()
+        process.chdir(workingDirectory)
+        await registerRpcRoutes(app, [], [LOGGER_MODULE.makeAdmRpc()])
         await app.ready()
 
         try {
@@ -321,6 +356,7 @@ describe('RPC contracts', () => {
             expect(invalidPageSize.statusCode).toBe(400)
         } finally {
             await app.close()
+            process.chdir(originalDirectory)
             closeLogger()
             await rm(workingDirectory, { recursive: true, force: true })
         }

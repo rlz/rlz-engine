@@ -1,4 +1,4 @@
-import type { CookieSerializeOptions } from '@fastify/cookie'
+import type { RpcCookieOptions } from '../rpc/rpc.js'
 
 export const SESSION_COOKIE_NAME = '__Host-session'
 export const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
@@ -14,11 +14,11 @@ export function clearSessionCookie(reply: SessionCookieReply): void {
 }
 
 interface SessionCookieReply {
-    setCookie(name: string, value: string, options: CookieSerializeOptions): unknown
-    clearCookie(name: string, options: CookieSerializeOptions): unknown
+    setCookie(name: string, value: string, options: RpcCookieOptions): unknown
+    clearCookie(name: string, options: RpcCookieOptions): unknown
 }
 
-function makeOptions(): CookieSerializeOptions {
+function makeOptions(): RpcCookieOptions {
     return {
         httpOnly: true,
         secure: true,

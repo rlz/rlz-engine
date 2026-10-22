@@ -1,4 +1,3 @@
-import { httpErrors } from '@fastify/sensible'
 import { resolve } from 'node:path'
 
 import { resetAdminSecret } from './admin-secret.js'
@@ -14,10 +13,11 @@ import {
     verifySessionCsrf
 } from './session.js'
 import { CliModule } from '../cli/cli-engine.js'
-import { RpcPluginBuilder, rpc } from '../rpc/rpc.js'
+import { Rpc, rpc } from '../rpc/rpc.js'
 import { AuthStorage } from './storage.js'
 import { signin, signup } from './utils.js'
 import { z } from 'zod'
+import { RpcError } from '../rpc/rpc.js'
 
 const AUTH_RESPONSE_SCHEMA = z.object({ id: z.uuid(), name: z.string(), email: z.email(), csrfToken: z.string() })
 const SIGNUP_REQUEST_SCHEMA = z.object({
@@ -37,7 +37,7 @@ export interface AuthRpcOptions {
 /** Authentication RPC and administrative maintenance integrations. */
 export const AUTH_MODULE = {
     /** Create signup/signin, session restoration, and cookie-authenticated logout RPC endpoints. */
-    makeRpc(storage: AuthStorage, options: AuthRpcOptions = {}): RpcPluginBuilder {
+    makeRpc(storage: AuthStorage, options: AuthRpcOptions = {}): Rpc {
         const sessionIdleTimeoutMs = options.sessionIdleTimeoutMs ?? SESSION_IDLE_TIMEOUT_MS
         if (
             !Number.isSafeInteger(sessionIdleTimeoutMs) ||
@@ -56,7 +56,7 @@ export const AUTH_MODULE = {
                 anonimous: true,
                 bodySchema: SIGNUP_REQUEST_SCHEMA,
                 respSchema: EMPTY_RESPONSE_SCHEMA,
-                action: async (body, _opts, context) => {
+                action: async (body, context) => {
                     assertSameOrigin(context.request)
                     await rateLimiter.run('signup', context.request.ip, async () => {
                         try {
@@ -75,10 +75,10 @@ export const AUTH_MODULE = {
                 anonimous: true,
                 bodySchema: SIGNIN_REQUEST_SCHEMA,
                 respSchema: AUTH_RESPONSE_SCHEMA,
-                action: async (body, _opts, context) => {
+                action: async (body, context) => {
                     assertSameOrigin(context.request)
                     const response = await rateLimiter.run('signin', context.request.ip, () => signin(storage, body.name, body.password))
-                    if (response === null) throw httpErrors.unauthorized()
+                    if (response === null) throw new RpcError(401, 'Unauthorized')
                     await revokeCurrentSession(storage, context)
                     const session = await createSession(storage, response.id)
                     setSessionCookie(context.reply, session.sessionId)
@@ -108,7 +108,7 @@ export const AUTH_MODULE = {
                     authenticate: (context) => authenticateSession(storage, context, sessionIdleTimeoutMs),
                     verifyCsrf: (context, session) => verifySessionCsrf(storage, context, session)
                 },
-                action: async (session, _body, _opts, context) => {
+                action: async (session, _body, context) => {
                     await storage.deleteSession(session.sessionHash)
                     clearSessionCookie(context.reply)
                     return {}

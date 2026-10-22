@@ -1,4 +1,4 @@
-import { httpErrors } from '@fastify/sensible'
+import { RpcError } from '../rpc/rpc.js'
 
 const SIGNIN_WINDOW_MS = 15 * 60 * 1000
 const SIGNIN_ATTEMPTS_PER_WINDOW = 10
@@ -22,7 +22,7 @@ export class AuthRateLimiter {
     private bucketInsertionsSinceCleanup = 0
 
     async run<T>(operation: AuthOperation, ip: string, action: () => Promise<T>): Promise<T> {
-        if (this.activeOperations >= MAX_CONCURRENT_OPERATIONS) throw httpErrors.tooManyRequests()
+        if (this.activeOperations >= MAX_CONCURRENT_OPERATIONS) throw new RpcError(429, 'Too Many Requests')
         this.checkRate(operation, ip)
 
         this.activeOperations += 1
@@ -57,7 +57,7 @@ export class AuthRateLimiter {
             return
         }
 
-        if (bucket.attempts >= limit) throw httpErrors.tooManyRequests()
+        if (bucket.attempts >= limit) throw new RpcError(429, 'Too Many Requests')
         bucket.attempts += 1
     }
 
