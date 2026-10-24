@@ -106,7 +106,7 @@ describe('operational CLI', () => {
         await engine.run(['strategies', 'backup'], runtime)
         await engine.run(['strategies', 'backup', '--file', 'custom.sqlite'], runtime)
 
-        expect(handler).toHaveBeenNthCalledWith(1, { file: 'default.sqlite' })
-        expect(handler).toHaveBeenNthCalledWith(2, { file: 'custom.sqlite' })
+        expect(handler).toHaveBeenNthCalledWith(1, { file: 'default.sqlite' }, runtime)
+        expect(handler).toHaveBeenNthCalledWith(2, { file: 'custom.sqlite' }, runtime)
     })
 })

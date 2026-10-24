@@ -17,7 +17,7 @@ export function generateClient(fileName: string, ...rpcBuilders: readonly Rpc[])
 }
 
 export function generateAdmClient(fileName: string, ...rpcBuilders: readonly AdmRpc[]) {
-    const builders = [ADM_AUTH_RPC, ...rpcBuilders]
+    const builders = rpcBuilders.includes(ADM_AUTH_RPC) ? rpcBuilders : [ADM_AUTH_RPC, ...rpcBuilders]
     assertUniquePluginNames(builders)
     return generateAdmClientSource(fileName, builders, 'ADM_RPC_CLIENT', 'rlz-engine/client/rpc.js')
 }
