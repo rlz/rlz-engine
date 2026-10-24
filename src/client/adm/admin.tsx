@@ -168,17 +168,17 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
                         Administration
                     </Typography>
-                    <Button
+                    <IconButton
                         color="inherit"
-                        startIcon={<Logout />}
                         onClick={() => {
                             setSecret('')
                             setActive(modules[0]?.name ?? '')
                         }}
                         aria-label="Sign out"
+                        title="Sign out"
                     >
-                        {desktop ? 'Sign out' : null}
-                    </Button>
+                        <Logout />
+                    </IconButton>
                 </Toolbar>
             </AppBar>
             <Box sx={{ display: 'flex' }}>
@@ -192,9 +192,9 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
                     <Toolbar />
                     {navigationList}
                 </Drawer>
-                <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 2, sm: 3, md: 4 } }}>
+                <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 1, sm: 2 } }}>
                     <Toolbar />
-                    <Container maxWidth="xl" disableGutters>
+                    <Container maxWidth={false} disableGutters>
                         {Content ? (
                             <Content key={`${selectedItem?.id}-${authKey}`} auth={{ adminSecret: secret }} />
                         ) : (
