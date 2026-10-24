@@ -14,6 +14,7 @@ const auditLogQuerySchema = z.object({
         .optional(),
     module: z.string().min(1).optional(),
     level: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
+    minLevel: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
     limit: z.number().int().min(1).max(1000).optional(),
     offset: z.number().int().min(0).optional()
 })
@@ -40,16 +41,18 @@ export function makeAuditLogAdmRpc() {
         v: 1,
         bodySchema: auditLogQuerySchema,
         respSchema: auditLogPageSchema,
-        action: (body) => {
-            const query: AuditLogQuery = {
-                ...(body.from === undefined ? {} : { from: body.from }),
-                ...(body.to === undefined ? {} : { to: body.to }),
-                ...(body.module === undefined ? {} : { module: body.module }),
-                ...(body.level === undefined ? {} : { level: body.level as LogLevel }),
-                limit: body.limit ?? 100,
-                offset: body.offset ?? 0
-            }
-            return getAuditLogReader().read(query)
-        }
+        action: (body) => getAuditLogReader().read(toAuditLogQuery(body))
     })
+}
+
+function toAuditLogQuery(body: z.infer<typeof auditLogQuerySchema>): AuditLogQuery {
+    return {
+        ...(body.from === undefined ? {} : { from: body.from }),
+        ...(body.to === undefined ? {} : { to: body.to }),
+        ...(body.module === undefined ? {} : { module: body.module }),
+        ...(body.level === undefined ? {} : { level: body.level as LogLevel }),
+        ...(body.minLevel === undefined ? {} : { minLevel: body.minLevel as LogLevel }),
+        limit: body.limit ?? 100,
+        offset: body.offset ?? 0
+    }
 }

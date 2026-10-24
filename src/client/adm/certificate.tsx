@@ -34,13 +34,13 @@ export function CertificateStatus({ auth }: { auth: AdmAuthParam }) {
     }, [load])
 
     return (
-        <Stack spacing={2}>
+        <Stack spacing={1}>
             <Typography variant="h4">TLS certificate</Typography>
             {error && <Alert severity="error">{error}</Alert>}
             {status && (
-                <Paper variant="outlined" sx={{ p: 3 }}>
-                    <Stack spacing={2}>
-                        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+                <Paper variant="outlined" sx={{ p: 1 }}>
+                    <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                             <Typography variant="h6">{status.domain}</Typography>
                             <Chip
                                 label={

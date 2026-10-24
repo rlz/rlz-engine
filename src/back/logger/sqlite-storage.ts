@@ -142,12 +142,27 @@ function readAuditLogDatabase(db: DatabaseSync, query: AuditLogQuery): AuditLogP
         values.push(to)
     }
     if (query.module !== undefined) {
-        conditions.push('module = ?')
-        values.push(query.module)
+        const exclude = query.module.startsWith('-')
+        const modules = query.module
+            .slice(exclude ? 1 : 0)
+            .split(',')
+            .map((module) => module.trim())
+            .filter(Boolean)
+        if (modules.length > 0) {
+            conditions.push(`module ${exclude ? 'NOT IN' : 'IN'} (${modules.map(() => '?').join(', ')})`)
+            values.push(...modules)
+        }
     }
     if (query.level !== undefined) {
         conditions.push('level = ?')
         values.push(query.level)
+    }
+    if (query.minLevel !== undefined) {
+        const orderedLevels: readonly AuditRecord['level'][] = ['fatal', 'error', 'warn', 'info', 'debug', 'trace']
+        const minimumIndex = orderedLevels.indexOf(query.minLevel)
+        const includedLevels = orderedLevels.slice(0, minimumIndex + 1)
+        conditions.push(`level IN (${includedLevels.map(() => '?').join(', ')})`)
+        values.push(...includedLevels)
     }
 
     const where = conditions.length === 0 ? '' : `WHERE ${conditions.join(' AND ')}`

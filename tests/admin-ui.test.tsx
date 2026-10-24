@@ -17,7 +17,14 @@ describe('administration module navigation', () => {
                 name: 'operations',
                 title: 'Operations',
                 component: ModuleScreen,
-                navigation: [{ name: 'settings', title: 'Settings', component: NavigationScreen }]
+                routes: [
+                    {
+                        path: 'settings',
+                        title: 'Settings',
+                        component: NavigationScreen,
+                        children: [{ path: 'advanced', title: 'Advanced', component: NavigationScreen }]
+                    }
+                ]
             },
             {
                 name: 'audit',
@@ -29,6 +36,7 @@ describe('administration module navigation', () => {
         expect(resolveAdmNavigation(modules).map(({ id, title, depth }) => ({ id, title, depth }))).toEqual([
             { id: 'operations', title: 'Operations', depth: 0 },
             { id: 'operations/settings', title: 'Settings', depth: 1 },
+            { id: 'operations/settings/advanced', title: 'Advanced', depth: 2 },
             { id: 'audit', title: 'Audit log', depth: 0 }
         ])
     })

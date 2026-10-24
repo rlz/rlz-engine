@@ -192,7 +192,7 @@ Structured fields are persisted as provided; do not include passwords, admin sec
 - `useAuthState` holds persisted authentication state.
 - `cacheLastResult()` wraps a function to cache its last result.
 
-These are building blocks for an application UI. `AdminApp` provides a responsive administration shell with a desktop sidebar and a mobile navigation drawer. Register `AdmModule` values with the shell; each module supplies its own title and component, and may declare child entries in `navigation`.
+These are building blocks for an application UI. `AdminApp` provides a responsive administration shell with a desktop sidebar and a mobile navigation drawer, backed by React Router at `/.adm`. Register `AdmModule` values with the shell; each module supplies its own title and component, and may declare nested `routes` with a path, title, component, and optional child routes. Route components can render React Router's `Outlet` to host their child routes.
 
 ```tsx
 import { AdminApp, type AdmModule } from 'rlz-engine/client/adm/admin.js'
@@ -201,9 +201,9 @@ const modules: AdmModule[] = [
     { name: 'engines', title: 'Engines', component: Engines },
     {
         name: 'operations', title: 'Operations', component: Operations,
-        navigation: [
-            { name: 'strategies', title: 'Strategies', component: Strategies },
-            { name: 'logs', title: 'Logs', component: Logs }
+        routes: [
+            { path: 'strategies', title: 'Strategies', component: Strategies },
+            { path: 'logs', title: 'Logs', component: Logs }
         ]
     }
 ]

@@ -33,6 +33,7 @@ export interface AuditLogQuery {
     to?: string
     module?: string
     level?: LogLevel
+    minLevel?: LogLevel
     limit: number
     offset: number
 }

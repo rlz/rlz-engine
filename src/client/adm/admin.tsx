@@ -1,4 +1,4 @@
-import { LockOutlined, Logout, SecurityOutlined } from '@mui/icons-material'
+import { LockOutlined, Logout, SecurityOutlined, Menu as MenuIcon } from '@mui/icons-material'
 import {
     Alert,
     AppBar,
@@ -17,66 +17,77 @@ import {
     useMediaQuery,
     useTheme
 } from '@mui/material'
-import { Menu as MenuIcon } from '@mui/icons-material'
 import React, { type ComponentType, type ReactNode, useMemo, useState } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useInRouterContext, useLocation, useNavigate } from 'react-router-dom'
 
 import type { AdmAuthParam } from '../rpc.js'
 import { ADM_AUTH_RPC_CLIENT } from './rpc-client.gen.js'
 
 export interface AdmModule {
-    /** Stable unique name used to identify this module and its navigation items. */
+    /** Stable URL segment and unique name for this module. */
     name: string
     title: string
     component: ComponentType<{ auth: AdmAuthParam }>
-    /** Optional module-owned navigation entries rendered by AdminApp. */
-    navigation?: readonly AdmNavigationItem[]
+    /** Module-owned child routes, shown in the administration navigation. */
+    routes?: readonly AdmRoute[]
 }
 
-export interface AdmNavigationItem {
-    /** Stable unique name within its module. */
-    name: string
+export interface AdmRoute {
+    /** Stable URL segment within the module or parent route. */
+    path: string
     title: string
     component: ComponentType<{ auth: AdmAuthParam }>
     icon?: ReactNode
+    children?: readonly AdmRoute[]
 }
 
 export interface ResolvedAdmNavigationItem {
     id: string
+    path: string
     title: string
-    component: ComponentType<{ auth: AdmAuthParam }>
     icon?: ReactNode
-    depth: 0 | 1
+    depth: number
 }
 
 export function resolveAdmNavigation(modules: readonly AdmModule[]): ResolvedAdmNavigationItem[] {
     return modules.flatMap((module) => [
-        {
-            id: module.name,
-            title: module.title,
-            component: module.component,
-            depth: 0 as const
-        },
-        ...(module.navigation ?? []).map((item) => ({
-            id: `${module.name}/${item.name}`,
-            title: item.title,
-            component: item.component,
-            icon: item.icon,
-            depth: 1 as const
-        }))
+        { id: module.name, path: `/${module.name}`, title: module.title, depth: 0 },
+        ...flattenRoutes(module.name, module.routes ?? [], 1)
     ])
 }
 
+function flattenRoutes(parentPath: string, routes: readonly AdmRoute[], depth: number): ResolvedAdmNavigationItem[] {
+    return routes.flatMap((route) => {
+        const path = `${parentPath}/${route.path}`
+        return [
+            { id: path, path: `/${path}`, title: route.title, icon: route.icon, depth },
+            ...flattenRoutes(path, route.children ?? [], depth + 1)
+        ]
+    })
+}
+
 export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
+    const inRouter = useInRouterContext()
+    return inRouter ? (
+        <AdminAppContent modules={modules} />
+    ) : (
+        <BrowserRouter basename="/.adm">
+            <AdminAppContent modules={modules} />
+        </BrowserRouter>
+    )
+}
+
+function AdminAppContent({ modules }: { modules: readonly AdmModule[] }) {
     const [secret, setSecret] = useState('')
     const [draft, setDraft] = useState('')
-    const [active, setActive] = useState(modules[0]?.name ?? '')
     const [error, setError] = useState('')
     const [authKey, setAuthKey] = useState(0)
     const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
     const theme = useTheme()
     const desktop = useMediaQuery(theme.breakpoints.up('md'))
     const navigation = useMemo(() => resolveAdmNavigation(modules), [modules])
-    const selectedItem = navigation.find((item) => item.id === active) ?? navigation[0]
+    const location = useLocation()
+    const navigate = useNavigate()
 
     const authenticate = async () => {
         const candidate = draft.trim()
@@ -96,16 +107,23 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
         }
     }
 
+    const routeElements = modules.map((module) => (
+        <Route key={module.name} path={module.name} element={<Outlet />}>
+            <Route index element={<module.component auth={{ adminSecret: secret }} key={`${module.name}-${authKey}`} />} />
+            {module.routes?.map((route) => makeRoute(route, module.name, secret, authKey))}
+        </Route>
+    ))
+
     if (!secret) {
         return (
-            <Container maxWidth="xs" sx={{ py: 12 }}>
+            <Container maxWidth="xs" sx={{ py: 1 }}>
                 <Box
                     component="form"
                     onSubmit={(event) => {
                         event.preventDefault()
                         void authenticate()
                     }}
-                    sx={{ display: 'grid', gap: 2 }}
+                    sx={{ display: 'grid', gap: 1 }}
                 >
                     <SecurityOutlined color="primary" sx={{ fontSize: 48, justifySelf: 'center' }} />
                     <Typography variant="h5" sx={{ textAlign: 'center' }}>
@@ -130,30 +148,10 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
         )
     }
 
-    const Content = selectedItem?.component
-    const navigationList = (
-        <List aria-label="Administration modules">
-            {navigation.map((item) => (
-                <ListItemButton
-                    key={item.id}
-                    selected={item.id === selectedItem?.id}
-                    onClick={() => {
-                        setActive(item.id)
-                        setMobileNavigationOpen(false)
-                    }}
-                    sx={{ pl: item.depth === 0 ? 2 : 4 }}
-                >
-                    {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
-                    <ListItemText primary={item.title} />
-                </ListItemButton>
-            ))}
-        </List>
-    )
-
     return (
         <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
             <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
-                <Toolbar>
+                <Toolbar sx={{ px: 1 }}>
                     {!desktop && (
                         <IconButton
                             color="inherit"
@@ -168,15 +166,7 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
                         Administration
                     </Typography>
-                    <IconButton
-                        color="inherit"
-                        onClick={() => {
-                            setSecret('')
-                            setActive(modules[0]?.name ?? '')
-                        }}
-                        aria-label="Sign out"
-                        title="Sign out"
-                    >
+                    <IconButton color="inherit" onClick={() => setSecret('')} aria-label="Sign out" title="Sign out">
                         <Logout />
                     </IconButton>
                 </Toolbar>
@@ -190,16 +180,40 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
                     sx={{ width: 240, flexShrink: 0, '& .MuiDrawer-paper': { width: 240, boxSizing: 'border-box' } }}
                 >
                     <Toolbar />
-                    {navigationList}
+                    <List aria-label="Administration modules">
+                        {navigation.map((item) => (
+                            <ListItemButton
+                                key={item.id}
+                                selected={location.pathname === item.path}
+                                onClick={() => {
+                                    void navigate(item.path)
+                                    setMobileNavigationOpen(false)
+                                }}
+                                sx={{ pl: 2 + item.depth * 2 }}
+                            >
+                                {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
+                                <ListItemText primary={item.title} />
+                            </ListItemButton>
+                        ))}
+                    </List>
                 </Drawer>
-                <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 1, sm: 2 } }}>
+                <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: 1 }}>
                     <Toolbar />
                     <Container maxWidth={false} disableGutters>
-                        {Content ? (
-                            <Content key={`${selectedItem?.id}-${authKey}`} auth={{ adminSecret: secret }} />
-                        ) : (
-                            <Typography>No administration modules are registered.</Typography>
-                        )}
+                        <Routes>
+                            <Route
+                                index
+                                element={
+                                    modules[0] ? (
+                                        <Navigate replace to={modules[0].name} />
+                                    ) : (
+                                        <Typography>No administration modules are registered.</Typography>
+                                    )
+                                }
+                            />
+                            {routeElements}
+                            <Route path="*" element={<Typography>No administration modules are registered.</Typography>} />
+                        </Routes>
                     </Container>
                 </Box>
             </Box>
@@ -207,6 +221,19 @@ export function AdminApp({ modules }: { modules: readonly AdmModule[] }) {
     )
 }
 
+function makeRoute(route: AdmRoute, moduleName: string, secret: string, authKey: number): React.ReactElement {
+    const Component = route.component
+    return (
+        <Route
+            key={route.path}
+            path={route.path}
+            element={<Component auth={{ adminSecret: secret }} key={`${moduleName}/${route.path}-${authKey}`} />}
+        >
+            {route.children?.map((child) => makeRoute(child, `${moduleName}/${route.path}`, secret, authKey))}
+        </Route>
+    )
+}
+
 export function AdmPanel({ children }: { children: ReactNode }) {
-    return <Box sx={{ display: 'grid', gap: 2 }}>{children}</Box>
+    return <Box sx={{ display: 'grid', gap: 1 }}>{children}</Box>
 }
