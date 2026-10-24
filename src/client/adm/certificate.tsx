@@ -14,12 +14,23 @@ interface CertificateStatus {
 }
 
 function formatDate(value?: string) {
-    return value === undefined ? '—' : new Date(value).toLocaleString()
+    return value === undefined ? '—' : new Date(value).toISOString()
+}
+
+function formatTimeRemaining(value: string | undefined, now: number) {
+    if (value === undefined) return '—'
+
+    const remainingMinutes = Math.max(0, Math.floor((new Date(value).getTime() - now) / 60_000))
+    const days = Math.floor(remainingMinutes / (24 * 60))
+    const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
+    const minutes = remainingMinutes % 60
+    return `${days}d ${hours}h ${minutes}m`
 }
 
 export function CertificateStatus({ auth }: { auth: AdmAuthParam }) {
     const [status, setStatus] = useState<CertificateStatus>()
     const [error, setError] = useState('')
+    const [now, setNow] = useState(() => Date.now())
     const load = useCallback(async () => {
         try {
             setError('')
@@ -32,6 +43,11 @@ export function CertificateStatus({ auth }: { auth: AdmAuthParam }) {
     useEffect(() => {
         void load()
     }, [load])
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 60_000)
+        return () => clearInterval(interval)
+    }, [])
 
     return (
         <Stack spacing={1}>
@@ -59,8 +75,12 @@ export function CertificateStatus({ auth }: { auth: AdmAuthParam }) {
                             <Alert severity="warning">No certificate is available yet. The server will request one during startup.</Alert>
                         )}
                         <Typography>Issued: {formatDate(status.issuedAt)}</Typography>
-                        <Typography>Expires: {formatDate(status.expiresAt)}</Typography>
-                        <Typography>Renewal window starts: {formatDate(status.renewalAt)}</Typography>
+                        <Typography>
+                            Expires: {formatDate(status.expiresAt)} (in {formatTimeRemaining(status.expiresAt, now)})
+                        </Typography>
+                        <Typography>
+                            Renewal window starts: {formatDate(status.renewalAt)} (in {formatTimeRemaining(status.renewalAt, now)})
+                        </Typography>
                         <Button onClick={() => void load()} sx={{ alignSelf: 'flex-start' }}>
                             Refresh
                         </Button>
