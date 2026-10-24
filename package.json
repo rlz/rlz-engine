@@ -1,6 +1,6 @@
 {
     "name": "rlz-engine",
-    "version": "1.0.66",
+    "version": "1.0.68",
     "description": "Deps and tools for my style of development",
     "engines": {
         "node": ">=22.13.0"

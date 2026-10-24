@@ -95,6 +95,14 @@ function generateTypedClient<BuilderT extends { name: string }>(
 
     const fileContent: string[] = []
     const typeImports = new Set<string>()
+    const runtimeImports = new Set(options.importNames)
+
+    for (const builder of rpcBuilders) {
+        for (const endpoint of options.endpointInfo(builder)) {
+            for (const { format } of collectWireFormats(endpoint.bodySchema)) runtimeImports.add(wireHelperName(format, 'encode'))
+            for (const { format } of collectWireFormats(endpoint.respSchema)) runtimeImports.add(wireHelperName(format, 'decode'))
+        }
+    }
 
     fileContent.push(
         p(
@@ -104,7 +112,7 @@ function generateTypedClient<BuilderT extends { name: string }>(
                     undefined,
                     undefined,
                     F.createNamedImports(
-                        options.importNames.map((name) => F.createImportSpecifier(false, undefined, F.createIdentifier(name)))
+                        [...runtimeImports].map((name) => F.createImportSpecifier(false, undefined, F.createIdentifier(name)))
                     )
                 ),
                 F.createStringLiteral(options.rpcImportPath),
@@ -140,7 +148,12 @@ function generateTypedClient<BuilderT extends { name: string }>(
 
     const props = rpcBuilders.map((b) => {
         const calls = options.endpointInfo(b).map((e) => {
-            const wireFormats = createWireFormatsArgument(e)
+            const bodyFormats = collectWireFormats(e.bodySchema)
+            const responseFormats = collectWireFormats(e.respSchema)
+            const bodyTypeName = createBodyTypeName(b.name, e)
+            const respTypeName = createRespTypeName(b.name, e)
+            const wireBodyTypeName = bodyFormats.length === 0 ? bodyTypeName : createWireBodyTypeName(b.name, e)
+            const wireRespTypeName = responseFormats.length === 0 ? respTypeName : createWireResponseTypeName(b.name, e)
             const parameters = [
                 ...options
                     .authParams(e)
@@ -163,6 +176,45 @@ function generateTypedClient<BuilderT extends { name: string }>(
                     undefined
                 )
             ]
+            const wireBody = createWireTransformExpression(
+                bodyFormats,
+                'encode',
+                'body',
+                undefined,
+                bodyFormats.length === 0 ? undefined : wireBodyTypeName
+            )
+            const rpcResponse = F.createAwaitExpression(
+                F.createCallExpression(
+                    F.createIdentifier(options.callFunction),
+                    [
+                        F.createTypeReferenceNode(F.createIdentifier(wireBodyTypeName), undefined),
+                        F.createTypeReferenceNode(F.createIdentifier(wireRespTypeName), undefined)
+                    ],
+                    [
+                        ...(options.authArgument === undefined ? [] : [options.authArgument(e)]),
+                        F.createStringLiteral(b.name),
+                        F.createStringLiteral(e.name),
+                        F.createNumericLiteral(e.v),
+                        wireBody
+                    ]
+                )
+            )
+            const response = F.createIdentifier('response')
+            const decodedResponse =
+                responseFormats.length === 0
+                    ? response
+                    : createWireTransformExpression(responseFormats, 'decode', 'response', wireRespTypeName, respTypeName)
+            const statements = [
+                F.createVariableStatement(
+                    undefined,
+                    F.createVariableDeclarationList(
+                        [F.createVariableDeclaration(response, undefined, undefined, rpcResponse)],
+                        ts.NodeFlags.Const
+                    )
+                ),
+                F.createReturnStatement(decodedResponse)
+            ]
+
             return F.createPropertyAssignment(
                 F.createIdentifier(kebabToPascalCase(e.name)),
                 F.createArrowFunction(
@@ -173,23 +225,7 @@ function generateTypedClient<BuilderT extends { name: string }>(
                         F.createTypeReferenceNode(F.createIdentifier(createRespTypeName(b.name, e)), undefined)
                     ]),
                     F.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                    F.createBlock(
-                        [
-                            F.createReturnStatement(
-                                F.createAwaitExpression(
-                                    F.createCallExpression(F.createIdentifier(options.callFunction), undefined, [
-                                        ...(options.authArgument === undefined ? [] : [options.authArgument(e)]),
-                                        F.createStringLiteral(b.name),
-                                        F.createStringLiteral(e.name),
-                                        F.createNumericLiteral(e.v),
-                                        F.createIdentifier('body'),
-                                        ...(wireFormats === undefined ? [] : [wireFormats])
-                                    ])
-                                )
-                            )
-                        ],
-                        true
-                    )
+                    F.createBlock(statements, true)
                 )
             )
         })
@@ -245,6 +281,17 @@ function generateTypes(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpointInfo,
 
     resp.push(p(bodyTypeAlias))
 
+    if (collectWireFormats(e.bodySchema).length > 0) {
+        const wireBodyType = zodToTs(e.bodySchema, { auxiliaryTypeStore: createAuxiliaryTypeStore() })
+        const wireBodyTypeAlias = F.createTypeAliasDeclaration(
+            undefined,
+            F.createIdentifier(createWireBodyTypeName(rpcName, e)),
+            undefined,
+            wireBodyType.node
+        )
+        resp.push(p(wireBodyTypeAlias))
+    }
+
     const respTypeName = createRespTypeName(rpcName, e)
     const respType = zodToTs(e.respSchema, { auxiliaryTypeStore: typeStore, overrideFunction })
     const respTypeAlias = F.createTypeAliasDeclaration(
@@ -256,50 +303,107 @@ function generateTypes(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpointInfo,
 
     resp.push(p(respTypeAlias))
 
+    if (collectWireFormats(e.respSchema).length > 0) {
+        const wireRespType = zodToTs(e.respSchema, { auxiliaryTypeStore: typeStore })
+        const wireRespTypeAlias = F.createTypeAliasDeclaration(
+            undefined,
+            F.createIdentifier(createWireResponseTypeName(rpcName, e)),
+            undefined,
+            wireRespType.node
+        )
+        resp.push(p(wireRespTypeAlias))
+    }
+
     return resp
 }
 
-function createWireFormatsArgument(e: RpcEndpointInfo | AdmRpcEndpointInfo): ts.Expression | undefined {
-    const bodyFormats = collectWireFormats(e.bodySchema)
-    const responseFormats = collectWireFormats(e.respSchema)
-    if (bodyFormats.length === 0 && responseFormats.length === 0) return undefined
+interface WireTransformNode {
+    format?: WireFormat
+    precision?: number | null
+    children: Map<string | number, WireTransformNode>
+}
 
-    const formats = (values: readonly WireFormatPath[]) =>
-        F.createArrayLiteralExpression(
-            values.map(({ path, format, precision }) =>
-                F.createObjectLiteralExpression(
-                    [
-                        F.createPropertyAssignment(
-                            'path',
-                            F.createArrayLiteralExpression(
-                                path.map((segment) =>
-                                    typeof segment === 'number' ? F.createNumericLiteral(segment) : F.createStringLiteral(segment)
-                                )
-                            )
-                        ),
-                        F.createPropertyAssignment('format', F.createStringLiteral(format)),
-                        ...(format === 'datetime' && precision !== undefined
-                            ? [
-                                  F.createPropertyAssignment(
-                                      'precision',
-                                      precision === null ? F.createNull() : F.createNumericLiteral(precision)
-                                  )
-                              ]
-                            : [])
-                    ],
-                    false
-                )
-            ),
-            false
+function createWireTransformExpression(
+    formats: readonly WireFormatPath[],
+    direction: 'encode' | 'decode',
+    value: string,
+    sourceTypeName?: string,
+    resultTypeName?: string
+): ts.Expression {
+    if (formats.length === 0) return F.createIdentifier(value)
+    const tree: WireTransformNode = { children: new Map() }
+    for (const format of formats) {
+        let node = tree
+        for (const segment of format.path) {
+            let child = node.children.get(segment)
+            if (child === undefined) {
+                child = { children: new Map() }
+                node.children.set(segment, child)
+            }
+            node = child
+        }
+        node.format = format.format
+        node.precision = format.precision
+    }
+
+    const source = sourceTypeName === undefined ? value : `(${value} as ${sourceTypeName})`
+    const expression = renderWireTransform(source, tree, direction)
+    return parseExpression(resultTypeName === undefined ? expression : `(${expression}) as ${resultTypeName}`)
+}
+
+function renderWireTransform(value: string, node: WireTransformNode, direction: 'encode' | 'decode'): string {
+    if (node.format !== undefined) {
+        const helper = wireHelperName(node.format, direction)
+        const precision = node.format === 'datetime' && direction === 'encode' ? `, ${node.precision ?? 'null'}` : ''
+        return nullishTransform(value, `${helper}(${value}${precision})`)
+    }
+
+    const arrayChild = node.children.get(-1)
+    const tupleChildren = [...node.children.entries()].filter(([key]) => typeof key === 'number' && key >= 0)
+    if (arrayChild !== undefined && tupleChildren.length === 0) {
+        return nullishTransform(value, `${value}.map((item) => ${renderWireTransform('item', arrayChild, direction)})`)
+    }
+    if (tupleChildren.length > 0) {
+        const branches = tupleChildren.map(([index, child]) => `index === ${index} ? ${renderWireTransform('item', child, direction)} : `)
+        const rest = arrayChild === undefined ? 'item' : renderWireTransform('item', arrayChild, direction)
+        return nullishTransform(value, `${value}.map((item, index) => ${branches.join('')}${rest})`)
+    }
+    const recordChild = node.children.get('@record')
+    if (recordChild !== undefined) {
+        return nullishTransform(
+            value,
+            `Object.fromEntries(Object.entries(${value}).map(([key, item]) => [key, ${renderWireTransform('item', recordChild, direction)}]))`
         )
+    }
 
-    return F.createObjectLiteralExpression(
-        [
-            ...(bodyFormats.length === 0 ? [] : [F.createPropertyAssignment('body', formats(bodyFormats))]),
-            ...(responseFormats.length === 0 ? [] : [F.createPropertyAssignment('response', formats(responseFormats))])
-        ],
-        false
-    )
+    const assignments = [...node.children.entries()].map(([key, child]) => {
+        const property = typeof key === 'string' ? JSON.stringify(key) : key
+        const access = typeof key === 'string' ? `${value}[${JSON.stringify(key)}]` : `${value}[${key}]`
+        return `${property}: ${renderWireTransform(access, child, direction)}`
+    })
+    return nullishTransform(value, `({ ...${value}, ${assignments.join(', ')} })`)
+}
+
+function nullishTransform(value: string, transformed: string): string {
+    return `${value} === null || ${value} === undefined ? ${value} : ${transformed}`
+}
+
+function parseExpression(expression: string): ts.Expression {
+    const source = ts.createSourceFile('generated.ts', `const value = ${expression}`, ScriptTarget.Latest, true, ScriptKind.TS)
+    const statement = source.statements[0] as ts.VariableStatement
+    const result = statement.declarationList.declarations[0]!.initializer!
+    const synthesize = (node: ts.Node) => {
+        ts.setTextRange(node, { pos: -1, end: -1 })
+        ts.forEachChild(node, synthesize)
+    }
+    synthesize(result)
+    return result
+}
+
+function wireHelperName(format: WireFormat, direction: 'encode' | 'decode'): string {
+    const action = direction === 'encode' ? 'encode' : 'decode'
+    const name = format === 'date' ? 'Date' : format === 'datetime' ? 'DateTime' : 'Duration'
+    return `${action}Rpc${name}`
 }
 
 function collectWireFormats(schema: zodCore.$ZodType): WireFormatPath[] {
@@ -320,10 +424,10 @@ function collectWireFormats(schema: zodCore.$ZodType): WireFormatPath[] {
         } else if (def.type === 'array' && def.element !== undefined) {
             visit(def.element, [...path, -1])
         } else if (def.type === 'tuple' && def.items !== undefined) {
-            for (const value of def.items) visit(value, [...path, -1])
+            for (const [index, value] of def.items.entries()) visit(value, [...path, index])
             if (def.rest !== undefined) visit(def.rest, [...path, -1])
         } else if (def.type === 'record' && def.valueType !== undefined) {
-            visit(def.valueType, [...path, -1])
+            visit(def.valueType, [...path, '@record'])
         } else if (def.type === 'union' && def.options !== undefined) {
             for (const value of def.options) visit(value, path)
         } else if (def.type === 'intersection') {
@@ -365,4 +469,12 @@ function createBodyTypeName(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpoint
 
 function createRespTypeName(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpointInfo) {
     return `RpcResp${kebabToPascalCase(rpcName, true)}${kebabToPascalCase(e.name, true)}V${e.v}`
+}
+
+function createWireResponseTypeName(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpointInfo) {
+    return `RpcWireResp${kebabToPascalCase(rpcName, true)}${kebabToPascalCase(e.name, true)}V${e.v}`
+}
+
+function createWireBodyTypeName(rpcName: string, e: RpcEndpointInfo | AdmRpcEndpointInfo) {
+    return `RpcWireBody${kebabToPascalCase(rpcName, true)}${kebabToPascalCase(e.name, true)}V${e.v}`
 }

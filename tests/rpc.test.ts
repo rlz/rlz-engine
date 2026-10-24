@@ -185,24 +185,33 @@ describe('RPC contracts', () => {
         expect(generated).toContain('2')
     })
 
-    it('generates Luxon types and wire conversion metadata for Zod ISO string formats', () => {
+    it('generates Luxon types and explicit wire conversions for Zod ISO string formats', () => {
         const builder = rpc('market').add({
             name: 'prices',
             v: 1,
             anonimous: true,
-            bodySchema: z.object({ from: z.iso.date(), at: z.iso.datetime() }),
-            respSchema: z.object({ time: z.iso.time(), duration: z.iso.duration() }),
-            action: () => ({ time: '12:30', duration: 'P1D' })
+            bodySchema: z.object({
+                from: z.iso.date(),
+                at: z.iso.datetime(),
+                rows: z.array(z.object({ date: z.iso.date().nullable().optional() })),
+                byId: z.record(z.string(), z.iso.date())
+            }),
+            respSchema: z.object({ date: z.iso.date(), time: z.iso.time(), duration: z.iso.duration() }),
+            action: () => ({ date: '2026-10-24', time: '12:30', duration: 'P1D' })
         })
 
         const generated = generateClient('market-client.ts', builder)
-        expect(generated).toContain('import { type DateTime, type Duration } from "luxon"')
+        expect(generated).toContain('encodeRpcDate')
+        expect(generated).toContain('decodeRpcDate')
         expect(generated).toContain('from: DateTime<true>')
         expect(generated).toContain('at: DateTime<true>')
         expect(generated).toContain('time: string')
         expect(generated).toContain('duration: Duration')
-        expect(generated).toContain('format: "datetime", precision: null')
-        expect(generated).toContain('response: [{ path: ["duration"], format: "duration"')
+        expect(generated).toContain('rpcCall<RpcWireBodyMarketPricesV1, RpcWireRespMarketPricesV1>')
+        expect(generated).toContain('encodeRpcDate(body["from"])')
+        expect(generated).toContain('body["rows"].map(item =>')
+        expect(generated).toContain('Object.entries(body["byId"])')
+        expect(generated).toContain('decodeRpcDuration((response as RpcWireRespMarketPricesV1)["duration"])')
     })
 
     it('generates typed administrative client methods using the admin secret transport', () => {

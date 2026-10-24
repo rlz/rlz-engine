@@ -1,93 +1,55 @@
 import { DateTime, Duration } from 'luxon'
 
+import { toValidDateTime } from '../shared/utils/datetime.js'
 import { getCsrfToken, getFrontConfig } from './config.js'
 
-export type RpcWireFormat = 'date' | 'datetime' | 'duration'
-
-export interface RpcWireFormatPath {
-    path: readonly (string | number)[]
-    format: RpcWireFormat
-    precision?: number | null
+export function encodeRpcDate(value: DateTime<true>): string {
+    const iso = value.toISODate()
+    if (iso === null) throw new TypeError('Could not serialize Luxon DateTime as RPC date')
+    return iso
 }
 
-export interface RpcWireFormats {
-    body?: readonly RpcWireFormatPath[]
-    response?: readonly RpcWireFormatPath[]
+export function decodeRpcDate(value: string): DateTime<true> {
+    return toValidDateTime(DateTime.fromISO(value, { zone: 'utc' }))
 }
 
-type RpcValueDirection = 'encode' | 'decode'
-
-function convertRpcFormats<T>(value: T, formats: readonly RpcWireFormatPath[] | undefined, direction: RpcValueDirection): T {
-    if (formats === undefined) return value
-    let result: unknown = value
-    for (const format of formats) result = convertAtPath(result, format.path, format, direction)
-    return result as T
-}
-
-function convertAtPath(value: unknown, path: readonly (string | number)[], spec: RpcWireFormatPath, direction: RpcValueDirection): unknown {
-    if (value === null || value === undefined) return value
-    if (path.length === 0) return convertRpcValue(value, spec, direction)
-
-    const [segment, ...rest] = path
-    if (segment === -1) {
-        return Array.isArray(value) ? value.map((item) => convertAtPath(item, rest, spec, direction)) : value
+export function encodeRpcDateTime(value: DateTime<true>, precision: number | null = null): string {
+    const utcValue = value.toUTC()
+    if (precision === -1 && (utcValue.second !== 0 || utcValue.millisecond !== 0)) {
+        throw new TypeError('RPC datetime precision is minutes, but the Luxon DateTime contains seconds')
     }
-    if (typeof value !== 'object' || Array.isArray(value) || !(segment in value)) return value
-
-    return { ...value, [segment]: convertAtPath((value as Record<string, unknown>)[segment], rest, spec, direction) }
-}
-
-function convertRpcValue(value: unknown, spec: RpcWireFormatPath, direction: RpcValueDirection): unknown {
-    if (direction === 'encode') {
-        if (spec.format === 'date' || spec.format === 'datetime') {
-            if (!(value instanceof DateTime) || !value.isValid)
-                throw new TypeError(`Expected a valid Luxon DateTime for RPC ${spec.format}`)
-            const utcValue = value.toUTC()
-            if (spec.format === 'datetime' && spec.precision === -1 && (utcValue.second !== 0 || utcValue.millisecond !== 0)) {
-                throw new TypeError('RPC datetime precision is minutes, but the Luxon DateTime contains seconds')
-            }
-            if (spec.format === 'datetime' && spec.precision === 0 && utcValue.millisecond !== 0) {
-                throw new TypeError('RPC datetime precision is seconds, but the Luxon DateTime contains milliseconds')
-            }
-            if (spec.format === 'datetime' && (spec.precision === 1 || spec.precision === 2)) {
-                const divisor = spec.precision === 1 ? 100 : 10
-                if (utcValue.millisecond % divisor !== 0) {
-                    throw new TypeError(
-                        `RPC datetime precision is ${spec.precision} fractional digits, but the Luxon DateTime has finer precision`
-                    )
-                }
-            }
-            const iso =
-                spec.format === 'date'
-                    ? value.toISODate()
-                    : utcValue.toISO({
-                          suppressSeconds: spec.precision === -1,
-                          suppressMilliseconds: spec.precision === -1 || spec.precision === 0
-                      })
-            if (iso === null) throw new TypeError(`Could not serialize Luxon DateTime as RPC ${spec.format}`)
-            if (spec.format === 'datetime' && (spec.precision === 1 || spec.precision === 2)) {
-                const precision = spec.precision
-                return iso.replace(/\.(\d{1,3})(?=Z|[+-]\d{2}:?\d{2}$)/, (_, fraction: string) => `.${fraction.slice(0, precision)}`)
-            }
-            return iso
+    if (precision === 0 && utcValue.millisecond !== 0) {
+        throw new TypeError('RPC datetime precision is seconds, but the Luxon DateTime contains milliseconds')
+    }
+    if (precision === 1 || precision === 2) {
+        const divisor = precision === 1 ? 100 : 10
+        if (utcValue.millisecond % divisor !== 0) {
+            throw new TypeError(`RPC datetime precision is ${precision} fractional digits, but the Luxon DateTime has finer precision`)
         }
-        if (!(value instanceof Duration) || !value.isValid) throw new TypeError('Expected a valid Luxon Duration for RPC duration')
-        const iso = value.toISO()
-        if (iso === null) throw new TypeError('Could not serialize Luxon Duration as RPC duration')
-        return iso
     }
+    const iso = utcValue.toISO({
+        suppressSeconds: precision === -1,
+        suppressMilliseconds: precision === -1 || precision === 0
+    })
+    if (iso === null) throw new TypeError('Could not serialize Luxon DateTime as RPC datetime')
+    if (precision === 1 || precision === 2) {
+        return iso.replace(/\.(\d{1,3})(?=Z|[+-]\d{2}:?\d{2}$)/, (_, fraction: string) => `.${fraction.slice(0, precision)}`)
+    }
+    return iso
+}
 
-    if (typeof value !== 'string') throw new TypeError(`Expected an ISO string in RPC ${spec.format} response`)
-    if (spec.format === 'date') {
-        const dateTime = DateTime.fromISO(value, { zone: 'utc' })
-        if (!dateTime.isValid) throw new TypeError(`Invalid ISO date in RPC response: ${dateTime.invalidReason}`)
-        return dateTime
-    }
-    if (spec.format === 'datetime') {
-        const dateTime = DateTime.fromISO(value, { setZone: true })
-        if (!dateTime.isValid) throw new TypeError(`Invalid ISO datetime in RPC response: ${dateTime.invalidReason}`)
-        return dateTime
-    }
+export function decodeRpcDateTime(value: string): DateTime<true> {
+    return toValidDateTime(DateTime.fromISO(value, { setZone: true }))
+}
+
+export function encodeRpcDuration(value: Duration): string {
+    if (!value.isValid) throw new TypeError('Expected a valid Luxon Duration for RPC duration')
+    const iso = value.toISO()
+    if (iso === null) throw new TypeError('Could not serialize Luxon Duration as RPC duration')
+    return iso
+}
+
+export function decodeRpcDuration(value: string): Duration {
     const duration = Duration.fromISO(value)
     if (!duration.isValid) throw new TypeError(`Invalid ISO duration in RPC response: ${duration.invalidReason}`)
     return duration
@@ -160,17 +122,10 @@ export async function rpcCall<BodyT extends object, RespT extends object>(
     rpcName: string,
     callName: string,
     version: number,
-    bodyObject: BodyT,
-    formats?: RpcWireFormats
+    bodyObject: BodyT
 ): Promise<RespT> {
     const csrfToken = getCsrfToken() ?? undefined
-    const response = await request(
-        url(rpcName, callName, version),
-        undefined,
-        convertRpcFormats(bodyObject, formats?.body, 'encode') as object,
-        csrfToken
-    )
-    return convertRpcFormats(response, formats?.response, 'decode') as RespT
+    return request(url(rpcName, callName, version), undefined, bodyObject, csrfToken)
 }
 
 export async function admRpcCall<BodyT extends object, RespT extends object>(
@@ -178,15 +133,9 @@ export async function admRpcCall<BodyT extends object, RespT extends object>(
     rpcName: string,
     callName: string,
     version: number,
-    bodyObject: BodyT,
-    formats?: RpcWireFormats
+    bodyObject: BodyT
 ): Promise<RespT> {
-    const response = await request(
-        admUrl(rpcName, callName, version),
-        `Bearer ${auth.adminSecret}`,
-        convertRpcFormats(bodyObject, formats?.body, 'encode') as object
-    )
-    return convertRpcFormats(response, formats?.response, 'decode') as RespT
+    return request(admUrl(rpcName, callName, version), `Bearer ${auth.adminSecret}`, bodyObject)
 }
 
 async function request<BodyT extends object, RespT extends object>(
