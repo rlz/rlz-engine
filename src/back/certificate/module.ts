@@ -5,7 +5,7 @@ import { makeCertificateCli } from './cli.js'
 
 export interface CertificateModuleOptions {
     certDir: string
-    domain: string
+    domain: string | (() => string | Promise<string>)
 }
 
 function makeAdm(): AdmModule {

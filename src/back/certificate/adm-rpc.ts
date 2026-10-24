@@ -9,6 +9,8 @@ import { admRpc } from '../rpc/rpc.js'
 
 const CERTIFICATE_RENEWAL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
+type DomainSource = string | (() => string | Promise<string>)
+
 const certificateStatusSchema = z.object({
     domain: z.string(),
     certificateFound: z.boolean(),
@@ -20,7 +22,7 @@ const certificateStatusSchema = z.object({
 })
 
 /** Creates a protected endpoint that reports dates from the certificate on disk. */
-export function makeCertificateAdmRpc({ certDir, domain }: { certDir: string; domain: string }) {
+export function makeCertificateAdmRpc({ certDir, domain }: { certDir: string; domain: DomainSource }) {
     const certificatePath = certFilename(path.resolve(certDir))
 
     return admRpc('certificate').add({
@@ -29,12 +31,13 @@ export function makeCertificateAdmRpc({ certDir, domain }: { certDir: string; do
         bodySchema: z.object({}),
         respSchema: certificateStatusSchema,
         action: async () => {
+            const resolvedDomain = typeof domain === 'function' ? await domain() : domain
             let pem: Buffer
             try {
                 pem = await readFile(certificatePath)
             } catch (error) {
                 if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-                    return { domain, certificateFound: false, renewalOverdue: true, expired: false }
+                    return { domain: resolvedDomain, certificateFound: false, renewalOverdue: true, expired: false }
                 }
                 throw error
             }
@@ -45,7 +48,7 @@ export function makeCertificateAdmRpc({ certDir, domain }: { certDir: string; do
             const renewalAt = new Date(expiresAt.getTime() - CERTIFICATE_RENEWAL_WINDOW_MS)
 
             return {
-                domain,
+                domain: resolvedDomain,
                 certificateFound: true,
                 issuedAt: issuedAt.toISOString(),
                 expiresAt: expiresAt.toISOString(),

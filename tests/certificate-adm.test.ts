@@ -62,4 +62,33 @@ describe('certificate administration', () => {
             process.chdir(originalDirectory)
         }
     })
+
+    it('resolves an asynchronous domain provider when reading certificate status', async () => {
+        workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-certificate-domain-'))
+        let calls = 0
+        const endpoint = CERTIFICATE_MODULE.makeAdmRpc({
+            certDir: workingDirectory,
+            domain: async () => {
+                calls += 1
+                return 'async.example.com'
+            }
+        }).endpoints[0]
+
+        const result = await endpoint.action({})
+
+        expect(result).toMatchObject({ domain: 'async.example.com', certificateFound: false })
+        expect(calls).toBe(1)
+    })
+
+    it('resolves a synchronous domain provider when reading certificate status', async () => {
+        workingDirectory = await mkdtemp(join(tmpdir(), 'rlz-engine-certificate-domain-'))
+        const endpoint = CERTIFICATE_MODULE.makeAdmRpc({
+            certDir: workingDirectory,
+            domain: () => 'sync.example.com'
+        }).endpoints[0]
+
+        const result = await endpoint.action({})
+
+        expect(result).toMatchObject({ domain: 'sync.example.com', certificateFound: false })
+    })
 })
