@@ -185,6 +185,26 @@ describe('RPC contracts', () => {
         expect(generated).toContain('2')
     })
 
+    it('generates Luxon types and wire conversion metadata for Zod ISO string formats', () => {
+        const builder = rpc('market').add({
+            name: 'prices',
+            v: 1,
+            anonimous: true,
+            bodySchema: z.object({ from: z.iso.date(), at: z.iso.datetime() }),
+            respSchema: z.object({ time: z.iso.time(), duration: z.iso.duration() }),
+            action: () => ({ time: '12:30', duration: 'P1D' })
+        })
+
+        const generated = generateClient('market-client.ts', builder)
+        expect(generated).toContain('import { type DateTime, type Duration } from "luxon"')
+        expect(generated).toContain('from: DateTime<true>')
+        expect(generated).toContain('at: DateTime<true>')
+        expect(generated).toContain('time: string')
+        expect(generated).toContain('duration: Duration')
+        expect(generated).toContain('format: "datetime", precision: null')
+        expect(generated).toContain('response: [{ path: ["duration"], format: "duration"')
+    })
+
     it('generates typed administrative client methods using the admin secret transport', () => {
         const builder = admRpc('audit').add({
             name: 'logs',
