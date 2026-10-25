@@ -1,9 +1,10 @@
 import { Alert, Button, Chip, Paper, Stack, Typography } from '@mui/material'
+import { DateTime } from 'luxon'
 import React, { useCallback, useEffect, useState } from 'react'
 
-import { admRpcCall, type AdmAuthParam } from '../rpc.js'
+import { decodeRpcDateTime, admRpcCall, type AdmAuthParam } from '../rpc.js'
 
-interface CertificateStatus {
+interface CertificateStatusResponse {
     domain: string
     certificateFound: boolean
     issuedAt?: string
@@ -13,14 +14,20 @@ interface CertificateStatus {
     expired: boolean
 }
 
-function formatDate(value?: string) {
-    return value === undefined ? '—' : new Date(value).toISOString()
+interface CertificateStatus extends Omit<CertificateStatusResponse, 'issuedAt' | 'expiresAt' | 'renewalAt'> {
+    issuedAt?: DateTime<true>
+    expiresAt?: DateTime<true>
+    renewalAt?: DateTime<true>
 }
 
-function formatTimeRemaining(value: string | undefined, now: number) {
+function formatDate(value?: DateTime<true>) {
+    return value === undefined ? '—' : value.toUTC().toISO()
+}
+
+function formatTimeRemaining(value: DateTime<true> | undefined, now: number) {
     if (value === undefined) return '—'
 
-    const remainingMinutes = Math.max(0, Math.floor((new Date(value).getTime() - now) / 60_000))
+    const remainingMinutes = Math.max(0, Math.floor((value.toMillis() - now) / 60_000))
     const days = Math.floor(remainingMinutes / (24 * 60))
     const hours = Math.floor((remainingMinutes % (24 * 60)) / 60)
     const minutes = remainingMinutes % 60
@@ -34,7 +41,16 @@ export function CertificateStatus({ auth }: { auth: AdmAuthParam }) {
     const load = useCallback(async () => {
         try {
             setError('')
-            setStatus(await admRpcCall<Record<string, never>, CertificateStatus>(auth, 'certificate', 'status', 1, {}))
+            const response = await admRpcCall<Record<string, never>, CertificateStatusResponse>(auth, 'certificate', 'status', 1, {})
+            setStatus({
+                domain: response.domain,
+                certificateFound: response.certificateFound,
+                renewalOverdue: response.renewalOverdue,
+                expired: response.expired,
+                ...(response.issuedAt === undefined ? {} : { issuedAt: decodeRpcDateTime(response.issuedAt) }),
+                ...(response.expiresAt === undefined ? {} : { expiresAt: decodeRpcDateTime(response.expiresAt) }),
+                ...(response.renewalAt === undefined ? {} : { renewalAt: decodeRpcDateTime(response.renewalAt) })
+            })
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : 'Unable to load certificate status.')
         }

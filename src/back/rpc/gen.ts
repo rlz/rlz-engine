@@ -355,7 +355,7 @@ function renderWireTransform(value: string, node: WireTransformNode, direction: 
     if (node.format !== undefined) {
         const helper = wireHelperName(node.format, direction)
         const precision = node.format === 'datetime' && direction === 'encode' ? `, ${node.precision ?? 'null'}` : ''
-        return nullishTransform(value, `${helper}(${value}${precision})`)
+        return nullishTransform(value, `${helper}(${value}!${precision})`)
     }
 
     const arrayChild = node.children.get(-1)

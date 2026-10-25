@@ -4,14 +4,8 @@ import { admRpc } from '../rpc/rpc.js'
 import { getAuditLogReader, type AuditLogQuery, type LogLevel } from './audit-logger.js'
 
 const auditLogQuerySchema = z.object({
-    from: z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
-        .optional(),
-    to: z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
-        .optional(),
+    from: z.iso.datetime({ offset: true }).optional(),
+    to: z.iso.datetime({ offset: true }).optional(),
     module: z.string().min(1).optional(),
     level: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
     minLevel: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).optional(),
@@ -23,7 +17,7 @@ const auditLogPageSchema = z.object({
     records: z.array(
         z.object({
             id: z.number().int().nonnegative(),
-            time: z.string(),
+            time: z.iso.datetime(),
             level: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']),
             module: z.string(),
             type: z.string(),

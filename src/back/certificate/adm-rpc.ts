@@ -14,9 +14,9 @@ type DomainSource = string | (() => string | Promise<string>)
 const certificateStatusSchema = z.object({
     domain: z.string(),
     certificateFound: z.boolean(),
-    issuedAt: z.string().optional(),
-    expiresAt: z.string().optional(),
-    renewalAt: z.string().optional(),
+    issuedAt: z.iso.datetime().optional(),
+    expiresAt: z.iso.datetime().optional(),
+    renewalAt: z.iso.datetime().optional(),
     renewalOverdue: z.boolean(),
     expired: z.boolean()
 })
